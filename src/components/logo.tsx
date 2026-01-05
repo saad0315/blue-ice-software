@@ -11,9 +11,9 @@ const font = Ubuntu({
 
 export const Logo = () => {
   return (
-    <Link href="/" className="flex items-center gap-x-1.5">
-      <Image src="/apple-touch-icon.png" alt="Icon" height={40} width={40} />
-      <p className={cn('text-xl font-semibold text-foreground', font.className)}>MADCOM DIGITAL</p>
+    <Link href="/" className="flex items-center justify-center gap-x-1.5">
+      <Image src="/logowhite.webp" alt="Icon" height={160} width={160} className="hidden dark:block" />
+      <Image src="/logo.webp" alt="Icon" height={160} width={160} className="block dark:hidden" />
     </Link>
   );
 };

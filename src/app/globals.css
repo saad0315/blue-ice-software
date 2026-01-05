@@ -12,15 +12,15 @@ body {
   }
 
   .glass {
-    @apply bg-white/40 dark:bg-black/40 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-xl;
+    @apply border border-white/20 bg-white/40 shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-black/40;
   }
 
   .glass-card {
-    @apply bg-white/50 dark:bg-slate-900/50 backdrop-blur-md border border-white/30 dark:border-white/10 shadow-lg rounded-xl;
+    @apply rounded-xl border border-white/30 bg-white/50 shadow-lg backdrop-blur-md dark:border-white/10 dark:bg-slate-900/50;
   }
 
   .glass-hover {
-    @apply hover:bg-white/60 dark:hover:bg-slate-900/60 transition-all duration-300;
+    @apply transition-all duration-300 hover:bg-white/60 dark:hover:bg-slate-900/60;
   }
 }
 
@@ -95,7 +95,7 @@ body {
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-100 via-background to-background dark:from-slate-900 dark:via-background dark:to-background bg-fixed;
+    @apply bg-background bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-100 via-background to-background bg-fixed text-foreground dark:from-slate-900 dark:via-background dark:to-background;
   }
 }
 
@@ -232,4 +232,8 @@ body {
   .font-mono {
     font-family: 'Courier New', Courier, monospace !important;
   }
+}
+
+.leaflet-control-geosearch .results.active {
+  color: red !important;
 }

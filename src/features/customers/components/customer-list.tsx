@@ -29,9 +29,15 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   isLoading?: boolean;
+  pagination?: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
 }
 
-export function CustomerTable<TData, TValue>({ columns, data, isLoading }: DataTableProps<TData, TValue>) {
+export function CustomerTable<TData, TValue>({ columns, data, isLoading, pagination }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
@@ -105,6 +111,7 @@ export function CustomerTable<TData, TValue>({ columns, data, isLoading }: DataT
             </SelectContent>
           </Select>
         </div>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="ml-auto">
@@ -173,18 +180,53 @@ export function CustomerTable<TData, TValue>({ columns, data, isLoading }: DataT
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end space-x-2 py-4">
+      <div className="glass-card sticky bottom-4 z-20 border-white/40 flex items-center justify-end space-x-2 px-2 py-1 mt-2  ">
         <div className="flex-1 text-sm text-muted-foreground">
-          {table.getFilteredSelectedRowModel().rows.length} of {table.getFilteredRowModel().rows.length} row(s) selected.
+          {pagination ? (
+            <>
+              Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} customers
+              <div className="inline-block ml-4">
+                <Select
+                  value={filters.limit?.toString() || '20'}
+                  onValueChange={(val) => setFilters({ limit: parseInt(val), page: 1 })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Per page" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="20">20 per page</SelectItem>
+                    <SelectItem value="50">50 per page</SelectItem>
+                    <SelectItem value="100">100 per page</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          ) : (
+            <>
+              {table.getFilteredSelectedRowModel().rows.length} of {table.getFilteredRowModel().rows.length} row(s) selected.
+            </>
+          )}
         </div>
-        <div className="space-x-2">
-          {/* Note: Next/Prev buttons currently do client-side pagination of the loaded data chunk.
-              To implement true server-side pagination, we would update the URL 'page' param here.
-           */}
-          <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
+        <div className="flex items-center space-x-2">
+          {pagination && (
+            <span className="text-sm text-muted-foreground">
+              Page {pagination.page} of {pagination.totalPages}
+            </span>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setFilters({ page: filters.page - 1 })}
+            disabled={!pagination || pagination.page <= 1}
+          >
             Previous
           </Button>
-          <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setFilters({ page: filters.page + 1 })}
+            disabled={!pagination || pagination.page >= pagination.totalPages}
+          >
             Next
           </Button>
         </div>

@@ -6,15 +6,17 @@ import { client } from '@/lib/hono';
 export const useGetCustomers = () => {
   const searchParams = useSearchParams();
   const search = searchParams.get('search') || undefined;
+  const routeId = searchParams.get('routeId') || undefined;
   const page = searchParams.get('page') ? parseInt(searchParams.get('page')!) : 1;
   const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : 20;
 
   return useQuery({
-    queryKey: ['customers', { search, page, limit }],
+    queryKey: ['customers', { search, routeId, page, limit }],
     queryFn: async () => {
       const response = await client.api.customers.$get({
         query: {
           search,
+          routeId,
           page: page.toString(),
           limit: limit.toString(),
         },

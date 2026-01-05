@@ -184,7 +184,7 @@ export const CreateCustomerForm = () => {
       </Form>
 
       {/* Form State Debug (Remove in production) */}
-      {process.env.NODE_ENV === 'development' && (
+      {/* {process.env.NODE_ENV === 'development' && (
         <Card className="border-dashed">
           <CardHeader>
             <CardTitle className="text-sm">Development: Form State</CardTitle>
@@ -202,7 +202,7 @@ export const CreateCustomerForm = () => {
             </pre>
           </CardContent>
         </Card>
-      )}
+      )} */}
     </div>
   );
 };

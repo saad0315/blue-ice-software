@@ -14,6 +14,7 @@ function CustomersContent() {
 
   // Handle the case where data might be undefined during loading or error
   const customers: Customer[] = (data?.data as Customer[]) || [];
+  const pagination = data?.pagination;
 
   return (
     <div className="flex flex-col gap-6">
@@ -26,7 +27,7 @@ function CustomersContent() {
           </Link>
         </Button>
       </div>
-      <CustomerTable columns={columns} data={customers} isLoading={isLoading} />
+      <CustomerTable columns={columns} data={customers} isLoading={isLoading} pagination={pagination} />
     </div>
   );
 }
