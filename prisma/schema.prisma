@@ -12,11 +12,11 @@ datasource db {
 }
 
 enum UserRole {
-  SUPER_ADMIN     // Owner
-  ADMIN           // Manager
-  DRIVER          // Rider
-  CUSTOMER        // Client
-  INVENTORY_MGR   // Plant Operator
+  SUPER_ADMIN // Owner
+  ADMIN // Manager
+  DRIVER // Rider
+  CUSTOMER // Client
+  INVENTORY_MGR // Plant Operator
 }
 
 enum Gender {
@@ -26,46 +26,46 @@ enum Gender {
 }
 
 enum CustomerType {
-  RESIDENTIAL     // Ghar
-  COMMERCIAL      // Office/Shop
-  CORPORATE       // Large Factories (Tax logic different)
+  RESIDENTIAL // Ghar
+  COMMERCIAL // Office/Shop
+  CORPORATE // Large Factories (Tax logic different)
 }
 
 enum OrderStatus {
-  SCHEDULED       // Auto-generated via Cron
-  PENDING         // Driver assigned
-  IN_PROGRESS     // Driver on the way
-  COMPLETED       // Delivered & Cash Collected
-  CANCELLED       // Customer refused / Driver unable to deliver
-  RESCHEDULED     // Moved to next day
+  SCHEDULED // Auto-generated via Cron
+  PENDING // Driver assigned
+  IN_PROGRESS // Driver on the way
+  COMPLETED // Delivered & Cash Collected
+  CANCELLED // Customer refused / Driver unable to deliver
+  RESCHEDULED // Moved to next day
 }
 
 enum CancellationReason {
-  CUSTOMER_NOT_HOME          // Customer ghar pe nahi hai
-  HOUSE_LOCKED               // Ghar band hai
-  CUSTOMER_REFUSED           // Customer ne mana kar diya
-  WRONG_ADDRESS              // Galat address
-  CUSTOMER_REQUESTED         // Customer ne khud cancel karwaya
-  PAYMENT_ISSUE              // Payment problem
-  WEATHER_CONDITION          // Barish ya weather issue
-  VEHICLE_BREAKDOWN          // Gaadi kharab ho gayi
-  SECURITY_ISSUE             // Security ne entry nahi di
-  CUSTOMER_NOT_REACHABLE     // Phone nahi utha raha
-  OTHER                      // Koi aur waja
+  CUSTOMER_NOT_HOME // Customer ghar pe nahi hai
+  HOUSE_LOCKED // Ghar band hai
+  CUSTOMER_REFUSED // Customer ne mana kar diya
+  WRONG_ADDRESS // Galat address
+  CUSTOMER_REQUESTED // Customer ne khud cancel karwaya
+  PAYMENT_ISSUE // Payment problem
+  WEATHER_CONDITION // Barish ya weather issue
+  VEHICLE_BREAKDOWN // Gaadi kharab ho gayi
+  SECURITY_ISSUE // Security ne entry nahi di
+  CUSTOMER_NOT_REACHABLE // Phone nahi utha raha
+  OTHER // Koi aur waja
 }
 
 enum PaymentMethod {
   CASH
   ONLINE_TRANSFER // Bank/JazzCash
-  PREPAID_WALLET  // App Balance
-  CREDIT          // Udhaar
+  PREPAID_WALLET // App Balance
+  CREDIT // Udhaar
 }
 
 enum CashHandoverStatus {
-  PENDING         // Driver has submitted, waiting for admin verification
-  VERIFIED        // Admin has verified and accepted
-  REJECTED        // Admin rejected due to discrepancy
-  ADJUSTED        // Admin accepted with adjustments
+  PENDING // Driver has submitted, waiting for admin verification
+  VERIFIED // Admin has verified and accepted
+  REJECTED // Admin rejected due to discrepancy
+  ADJUSTED // Admin accepted with adjustments
 }
 
 enum ExpenseCategory {
@@ -95,25 +95,22 @@ enum ExpensePaymentMethod {
 // --------------------------------------------------------
 
 model User {
-  id          String    @id @default(uuid())
-  email       String?   @unique // Optional because Drivers/Staff might only have Phone
-  phoneNumber String    @unique // Primary identifier in PK
-  password    String    // Hashed
+  id          String   @id @default(uuid())
+  email       String?  @unique // Optional because Drivers/Staff might only have Phone
+  phoneNumber String   @unique // Primary identifier in PK
+  password    String // Hashed
   name        String
-  role        UserRole  @default(CUSTOMER)
-  
-  isActive    Boolean   @default(true) // Soft Delete (Data kabhi delete nahi hota)
-  suspended   Boolean   @default(false)
-  fcmTokens   String[]  // Push Notifications
+  role        UserRole @default(CUSTOMER)
 
-  @@index([name])
-  @@index([phoneNumber])
-  
+  isActive  Boolean  @default(true) // Soft Delete (Data kabhi delete nahi hota)
+  suspended Boolean  @default(false)
+  fcmTokens String[] // Push Notifications
+
   // Profile Fields
-  designation         String?
-  imageUrl            String?
-  birthDate           DateTime?
-  gender              Gender?
+  designation String?
+  imageUrl    String?
+  birthDate   DateTime?
+  gender      Gender?
 
   // Password Reset
   resetPasswordToken  String?
@@ -123,18 +120,21 @@ model User {
   // Relations (Polymorphic style logic)
   customerProfile CustomerProfile?
   driverProfile   DriverProfile?
-  
+
   // Audit Logs (Who did what?)
-  actionsPerformed AuditLog[]  @relation("Actor")
+  actionsPerformed AuditLog[] @relation("Actor")
 
   // Expenses
-  expensesSpent    Expense[]   @relation("ExpenseSpender")
-  expensesApproved Expense[]   @relation("ExpenseApprover")
+  expensesSpent    Expense[] @relation("ExpenseSpender")
+  expensesApproved Expense[] @relation("ExpenseApprover")
 
-  notifications    Notification[]
+  notifications Notification[]
 
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@index([phoneNumber])
 }
 
 // --------------------------------------------------------
@@ -142,77 +142,78 @@ model User {
 // --------------------------------------------------------
 
 model CustomerProfile {
-  id              String       @id @default(uuid())
-  userId          String       @unique
-  user            User         @relation(fields: [userId], references: [id])
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
 
   // --- Customer Code (Auto-generated or Manual for Legacy) ---
-  manualCode      String       @unique // Customer code like 'C-1001' (auto) or 'L-3442' (legacy)
+  manualCode String @unique // Customer code like 'C-1001' (auto) or 'L-3442' (legacy)
 
   // --- Location & Logistics ---
-  area            String       // e.g., "Gulshan Blk 4" (Filtering ke liye)
-  address         String       // Full text
-  landmark        String?      // e.g., "Near Madina Masjid"
-  floorNumber     Int          @default(0) // 0=Ground. Important for labor cost calculation
-  hasLift         Boolean      @default(false)
-  geoLat          Float?       // Google Maps Pin
-  geoLng          Float?       // Google Maps Pin
+  area        String // e.g., "Gulshan Blk 4" (Filtering ke liye)
+  address     String // Full text
+  landmark    String? // e.g., "Near Madina Masjid"
+  floorNumber Int     @default(0) // 0=Ground. Important for labor cost calculation
+  hasLift     Boolean @default(false)
+  geoLat      Float? // Google Maps Pin
+  geoLng      Float? // Google Maps Pin
 
   // --- Routing & Grouping ---
-  routeId         String?
-  route           Route?       @relation(fields: [routeId], references: [id])
-  sequenceOrder   Int?         // Driver ki list mein ye kis number par aayega (Route Optimization)
-
-  @@index([routeId])
+  routeId       String?
+  route         Route?  @relation(fields: [routeId], references: [id])
+  sequenceOrder Int? // Driver ki list mein ye kis number par aayega (Route Optimization)
 
   // --- Business Logic ---
-  type            CustomerType @default(RESIDENTIAL)
-  deliveryDays    Int[]        // [1, 4] = Mon, Thu. (Scalable: can add Sunday [0] later)
+  type         CustomerType @default(RESIDENTIAL)
+  deliveryDays Int[] // [1, 4] = Mon, Thu. (Scalable: can add Sunday [0] later)
 
   // --- Delivery Instructions (Driver-facing) ---
-  deliveryInstructions  String?      // e.g., "Call before arriving", "Leave at gate", "Ring bell twice"
-  preferredDeliveryTime String?      // e.g., "Morning 8-10 AM", "After 5 PM only"
-  specialNotes          String?      // e.g., "Beware of dog", "Park on street, gate locked"
+  deliveryInstructions  String? // e.g., "Call before arriving", "Leave at gate", "Ring bell twice"
+  preferredDeliveryTime String? // e.g., "Morning 8-10 AM", "After 5 PM only"
+  specialNotes          String? // e.g., "Beware of dog", "Park on street, gate locked"
 
   // --- Financials (The Wallet) ---
   // Note: We don't store "Bottle Balance" here because products vary.
   // We store it in `CustomerBottleWallet` (See below).
 
-  cashBalance     Decimal      @default(0) @db.Decimal(10, 2) // (+ Advance / - Udhaar)
-  creditLimit     Decimal      @default(2000) @db.Decimal(10, 2) // Is se zyada udhaar nahi milega (Auto-Stop)
+  cashBalance Decimal @default(0) @db.Decimal(10, 2) // (+ Advance / - Udhaar)
+  creditLimit Decimal @default(2000) @db.Decimal(10, 2) // Is se zyada udhaar nahi milega (Auto-Stop)
 
   // --- Automated Ordering Defaults ---
-  defaultProductId String?     // What to order automatically
-  defaultQuantity  Int         @default(1)
+  defaultProductId String? // What to order automatically
+  defaultQuantity  Int     @default(1)
 
   // --- Opening Balances (For Legacy Data Migration) ---
   openingCashBalance   Decimal @default(0) @db.Decimal(10, 2) // Initial cash balance during migration
   openingBottleBalance Int     @default(0) // Initial bottle count during migration
 
   // Relations
-  orders          Order[]
-  specialPrices   CustomerProductPrice[]
-  bottleWallets   CustomerBottleWallet[]
-  ledgers         Ledger[]
+  defaultProduct Product?               @relation(fields: [defaultProductId], references: [id])
+  orders         Order[]
+  specialPrices  CustomerProductPrice[]
+  bottleWallets  CustomerBottleWallet[]
+  ledgers        Ledger[]
+
+  @@index([routeId])
 }
 
 model Route {
   id              String            @id @default(uuid())
   name            String
-  description String?
-  defaultDriverId String?           // Primary Driver for this route
+  description     String?
+  defaultDriverId String? // Primary Driver for this route
   defaultDriver   DriverProfile?    @relation(fields: [defaultDriverId], references: [id])
   customers       CustomerProfile[]
   assignments     RouteAssignment[] // History/Current active driver
 }
 
 model RouteAssignment {
-  id        String   @id @default(uuid())
-  routeId   String
-  driverId  String
-  date      DateTime @db.Date
-  route     Route    @relation(fields: [routeId], references: [id])
-  driver    DriverProfile @relation(fields: [driverId], references: [id])
+  id       String        @id @default(uuid())
+  routeId  String
+  driverId String
+  date     DateTime      @db.Date
+  route    Route         @relation(fields: [routeId], references: [id])
+  driver   DriverProfile @relation(fields: [driverId], references: [id])
 }
 
 // --------------------------------------------------------
@@ -220,49 +221,50 @@ model RouteAssignment {
 // --------------------------------------------------------
 
 model Product {
-  id          String   @id @default(uuid())
-  name        String   // "19L Mineral Water", "5L Bottle", "Dispenser"
-  sku         String   @unique
-  basePrice   Decimal  @db.Decimal(10, 2) // Default market price
-  
+  id        String  @id @default(uuid())
+  name      String // "19L Mineral Water", "5L Bottle", "Dispenser"
+  sku       String  @unique
+  basePrice Decimal @db.Decimal(10, 2) // Default market price
+
   // Inventory Tracking
   isReturnable Boolean @default(true) // Pani ki bottle wapis aati hai, Dispenser nahi
-  stockFilled  Int     @default(0)    // Plant Warehouse
-  stockEmpty   Int     @default(0)    // Plant Warehouse
-  stockDamaged Int     @default(0)    // Broken/Lost Bottles (Audit Trail)
-  
-  createdAt   DateTime @default(now())
-  
+  stockFilled  Int     @default(0) // Plant Warehouse
+  stockEmpty   Int     @default(0) // Plant Warehouse
+  stockDamaged Int     @default(0) // Broken/Lost Bottles (Audit Trail)
+
+  createdAt DateTime @default(now())
+
   // Relations
-  orderItems    OrderItem[]
-  specialPrices CustomerProductPrice[]
-  bottleWallets CustomerBottleWallet[]
+  orderItems      OrderItem[]
+  specialPrices   CustomerProductPrice[]
+  bottleWallets   CustomerBottleWallet[]
+  CustomerProfile CustomerProfile[]
 }
 
 // Customer Specific Pricing (Tier System Override)
 model CustomerProductPrice {
-  id          String          @id @default(uuid())
+  id          String  @id @default(uuid())
   customerId  String
   productId   String
-  customPrice Decimal         @db.Decimal(10, 2) // e.g., 180 instead of 200
-  
-  customer    CustomerProfile @relation(fields: [customerId], references: [id])
-  product     Product         @relation(fields: [productId], references: [id])
+  customPrice Decimal @db.Decimal(10, 2) // e.g., 180 instead of 200
+
+  customer CustomerProfile @relation(fields: [customerId], references: [id])
+  product  Product         @relation(fields: [productId], references: [id])
 
   @@unique([customerId, productId]) // Ek customer ki ek product ki ek hi price hogi
 }
 
 // Customer Bottle Holding (Scalable Inventory at Customer End)
 model CustomerBottleWallet {
-  id          String          @id @default(uuid())
-  customerId  String
-  productId   String
-  
+  id         String @id @default(uuid())
+  customerId String
+  productId  String
+
   // Kitni bottles customer ke paas hain (Net Balance)
-  balance     Int             @default(0) 
-  
-  customer    CustomerProfile @relation(fields: [customerId], references: [id])
-  product     Product         @relation(fields: [productId], references: [id])
+  balance Int @default(0)
+
+  customer CustomerProfile @relation(fields: [customerId], references: [id])
+  product  Product         @relation(fields: [productId], references: [id])
 
   @@unique([customerId, productId])
 }
@@ -272,42 +274,42 @@ model CustomerBottleWallet {
 // --------------------------------------------------------
 
 model Order {
-  id             String      @id @default(uuid())
-  readableId     Int         @default(autoincrement()) // "Order #1005" for receipt
-  
-  customerId     String
-  customer       CustomerProfile @relation(fields: [customerId], references: [id])
-  
-  driverId       String?
-  driver         DriverProfile?  @relation(fields: [driverId], references: [id])
-  
-  scheduledDate  DateTime    @db.Date // Sirf Date (Time nahi)
-  status         OrderStatus @default(SCHEDULED)
-  
+  id         String @id @default(uuid())
+  readableId Int    @default(autoincrement()) // "Order #1005" for receipt
+
+  customerId String
+  customer   CustomerProfile @relation(fields: [customerId], references: [id])
+
+  driverId String?
+  driver   DriverProfile? @relation(fields: [driverId], references: [id])
+
+  scheduledDate DateTime    @db.Date // Sirf Date (Time nahi)
+  status        OrderStatus @default(SCHEDULED)
+
   // Financial Snapshot
-  totalAmount    Decimal     @default(0) @db.Decimal(10, 2)
-  discount       Decimal     @default(0) @db.Decimal(10, 2)
-  deliveryCharge Decimal     @default(0) @db.Decimal(10, 2) // Lift na hone par extra charge logic
-  
+  totalAmount    Decimal @default(0) @db.Decimal(10, 2)
+  discount       Decimal @default(0) @db.Decimal(10, 2)
+  deliveryCharge Decimal @default(0) @db.Decimal(10, 2) // Lift na hone par extra charge logic
+
   // Proof of Delivery
-  deliveredAt    DateTime?
-  signatureUrl   String?     // Driver app pe sign
-  cashCollected  Decimal     @default(0) @db.Decimal(10, 2)
-  paymentMethod  PaymentMethod @default(CASH)
+  deliveredAt   DateTime?
+  signatureUrl  String? // Driver app pe sign
+  cashCollected Decimal       @default(0) @db.Decimal(10, 2)
+  paymentMethod PaymentMethod @default(CASH)
 
   // Cancellation/Reschedule Tracking
   cancellationReason    CancellationReason? // Why was it cancelled/rescheduled
-  cancelledBy           String?             // User ID who cancelled (driver/admin/customer)
-  cancelledAt           DateTime?           // When was it cancelled
-  driverNotes           String?             // Driver's explanation/notes
-  proofPhotoUrl         String?             // Photo evidence (locked house, etc.)
-  rescheduledToDate     DateTime?   @db.Date // If rescheduled, new date
-  originalScheduledDate DateTime?   @db.Date // Track original date for rescheduled orders
+  cancelledBy           String? // User ID who cancelled (driver/admin/customer)
+  cancelledAt           DateTime? // When was it cancelled
+  driverNotes           String? // Driver's explanation/notes
+  proofPhotoUrl         String? // Photo evidence (locked house, etc.)
+  rescheduledToDate     DateTime?           @db.Date // If rescheduled, new date
+  originalScheduledDate DateTime?           @db.Date // Track original date for rescheduled orders
 
-  orderItems     OrderItem[]
+  orderItems OrderItem[]
 
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([scheduledDate, status])
   @@index([driverId, scheduledDate])
@@ -315,44 +317,44 @@ model Order {
 }
 
 model OrderItem {
-  id          String   @id @default(uuid())
-  orderId     String
-  productId   String
-  
-  quantity    Int      // Kitni bottles mangwai
-  priceAtTime Decimal  @db.Decimal(10, 2) // Price changes history maintain karne ke liye
-  
+  id        String @id @default(uuid())
+  orderId   String
+  productId String
+
+  quantity    Int // Kitni bottles mangwai
+  priceAtTime Decimal @db.Decimal(10, 2) // Price changes history maintain karne ke liye
+
   // Bottle Exchange Logic (The Core of this Business)
-  filledGiven Int      @default(0) // Driver ne kitni di
-  emptyTaken  Int      @default(0) // Driver ne kitni wapis li
-  damagedReturned Int  @default(0) // Broken bottles returned
-  
-  order       Order    @relation(fields: [orderId], references: [id])
-  product     Product  @relation(fields: [productId], references: [id])
+  filledGiven     Int @default(0) // Driver ne kitni di
+  emptyTaken      Int @default(0) // Driver ne kitni wapis li
+  damagedReturned Int @default(0) // Broken bottles returned
+
+  order   Order   @relation(fields: [orderId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
 }
 
 model DriverProfile {
-  id                  String   @id @default(uuid())
-  userId              String   @unique
-  user                User     @relation(fields: [userId], references: [id])
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
 
-  vehicleNo           String?
-  licenseNo           String?
+  vehicleNo String?
+  licenseNo String?
 
   // Live Location Tracking
-  currentLat          Float?
-  currentLng          Float?
-  lastLocationUpdate  DateTime?
-  isOnDuty            Boolean  @default(false)
+  currentLat         Float?
+  currentLng         Float?
+  lastLocationUpdate DateTime?
+  isOnDuty           Boolean   @default(false)
 
-  orders              Order[]
-  defaultRoutes       Route[]
-  routeAssignments    RouteAssignment[]
-  locationHistory     DriverLocationHistory[]
-  performanceMetrics  DriverPerformanceMetrics[]
-  cashHandovers       CashHandover[]
-  expenses            Expense[]
-  ledgers             DriverLedger[]
+  orders             Order[]
+  defaultRoutes      Route[]
+  routeAssignments   RouteAssignment[]
+  locationHistory    DriverLocationHistory[]
+  performanceMetrics DriverPerformanceMetrics[]
+  cashHandovers      CashHandover[]
+  expenses           Expense[]
+  ledgers            DriverLedger[]
 }
 
 // --------------------------------------------------------
@@ -360,43 +362,43 @@ model DriverProfile {
 // --------------------------------------------------------
 
 model Ledger {
-  id             String        @id @default(uuid())
-  customerId     String
-  customer       CustomerProfile @relation(fields: [customerId], references: [id])
-  
-  amount         Decimal       @db.Decimal(10, 2) // +ve for Credit, -ve for Debit
-  description    String        // "Order #1005 Delivery", "Cash Payment Received"
-  balanceAfter   Decimal       @db.Decimal(10, 2) // Running Balance
-  
-  referenceId    String?       // Order ID or Payment ID
-  createdAt      DateTime      @default(now())
+  id         String          @id @default(uuid())
+  customerId String
+  customer   CustomerProfile @relation(fields: [customerId], references: [id])
+
+  amount       Decimal @db.Decimal(10, 2) // +ve for Credit, -ve for Debit
+  description  String // "Order #1005 Delivery", "Cash Payment Received"
+  balanceAfter Decimal @db.Decimal(10, 2) // Running Balance
+
+  referenceId String? // Order ID or Payment ID
+  createdAt   DateTime @default(now())
 }
 
 model DriverLedger {
-  id              String        @id @default(uuid())
-  driverId        String
-  driver          DriverProfile @relation(fields: [driverId], references: [id])
+  id       String        @id @default(uuid())
+  driverId String
+  driver   DriverProfile @relation(fields: [driverId], references: [id])
 
-  amount          Decimal       @db.Decimal(10, 2) // +ve for Credit (Company owes Driver), -ve for Debit (Driver owes Company)
-  balanceAfter    Decimal       @db.Decimal(10, 2) // Running Balance
+  amount       Decimal @db.Decimal(10, 2) // +ve for Credit (Company owes Driver), -ve for Debit (Driver owes Company)
+  balanceAfter Decimal @db.Decimal(10, 2) // Running Balance
 
-  description     String        // "Cash Shortage - 26 Oct", "Salary Payment"
-  referenceId     String?       // CashHandover ID or Expense ID
+  description String // "Cash Shortage - 26 Oct", "Salary Payment"
+  referenceId String? // CashHandover ID or Expense ID
 
-  createdAt       DateTime      @default(now())
+  createdAt DateTime @default(now())
 
   @@index([driverId])
 }
 
 model AuditLog {
-  id          String   @id @default(uuid())
-  actorId     String
-  actor       User     @relation("Actor", fields: [actorId], references: [id])
+  id      String @id @default(uuid())
+  actorId String
+  actor   User   @relation("Actor", fields: [actorId], references: [id])
 
-  action      String   // "UPDATE_PRICE", "DELETE_ORDER"
-  details     Json?    // { oldPrice: 200, newPrice: 220 }
+  action  String // "UPDATE_PRICE", "DELETE_ORDER"
+  details Json? // { oldPrice: 200, newPrice: 220 }
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 }
 
 // --------------------------------------------------------
@@ -404,45 +406,45 @@ model AuditLog {
 // --------------------------------------------------------
 
 model CashHandover {
-  id                    String              @id @default(uuid())
-  readableId            Int                 @default(autoincrement()) // "Handover #1005"
+  id         String @id @default(uuid())
+  readableId Int    @default(autoincrement()) // "Handover #1005"
 
-  driverId              String
-  driver                DriverProfile       @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  driverId String
+  driver   DriverProfile @relation(fields: [driverId], references: [id], onDelete: Cascade)
 
-  date                  DateTime            @db.Date // Handover date
-  shiftStart            DateTime?           // When driver started duty
-  shiftEnd              DateTime?           // When driver ended duty
+  date       DateTime  @db.Date // Handover date
+  shiftStart DateTime? // When driver started duty
+  shiftEnd   DateTime? // When driver ended duty
 
   // Expected vs Actual
-  expectedCash          Decimal             @db.Decimal(10, 2) // Based on completed cash orders
-  actualCash            Decimal             @db.Decimal(10, 2) // What driver actually handed over
-  discrepancy           Decimal             @db.Decimal(10, 2) // expectedCash - actualCash
+  expectedCash Decimal @db.Decimal(10, 2) // Based on completed cash orders
+  actualCash   Decimal @db.Decimal(10, 2) // What driver actually handed over
+  discrepancy  Decimal @db.Decimal(10, 2) // expectedCash - actualCash
 
   // Order Summary
-  totalOrders           Int                 @default(0) // Total orders assigned
-  completedOrders       Int                 @default(0) // Orders completed
-  cashOrders            Int                 @default(0) // Orders paid in cash
+  totalOrders     Int @default(0) // Total orders assigned
+  completedOrders Int @default(0) // Orders completed
+  cashOrders      Int @default(0) // Orders paid in cash
 
   // Bottle Summary
-  bottlesGiven          Int                 @default(0)
-  bottlesTaken          Int                 @default(0)
+  bottlesGiven Int @default(0)
+  bottlesTaken Int @default(0)
 
   // Status & Verification
-  status                CashHandoverStatus  @default(PENDING)
-  driverNotes           String?             // Driver's explanation for any discrepancy
+  status      CashHandoverStatus @default(PENDING)
+  driverNotes String? // Driver's explanation for any discrepancy
 
   // Admin Verification
-  verifiedBy            String?             // Admin user ID who verified
-  verifiedAt            DateTime?
-  adminNotes            String?             // Admin's notes/adjustments
-  adjustmentAmount      Decimal?            @db.Decimal(10, 2) // If admin adjusts the amount
-  receiptUrl            String?             // Digital receipt/acknowledgement
+  verifiedBy       String? // Admin user ID who verified
+  verifiedAt       DateTime?
+  adminNotes       String? // Admin's notes/adjustments
+  adjustmentAmount Decimal?  @db.Decimal(10, 2) // If admin adjusts the amount
+  receiptUrl       String? // Digital receipt/acknowledgement
 
   // Metadata
-  submittedAt           DateTime            @default(now())
-  createdAt             DateTime            @default(now())
-  updatedAt             DateTime            @updatedAt
+  submittedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@unique([driverId, date]) // One handover per driver per day
   @@index([date])
@@ -455,98 +457,98 @@ model CashHandover {
 // --------------------------------------------------------
 
 model DriverLocationHistory {
-  id          String        @id @default(uuid())
-  driverId    String
-  driver      DriverProfile @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  id       String        @id @default(uuid())
+  driverId String
+  driver   DriverProfile @relation(fields: [driverId], references: [id], onDelete: Cascade)
 
-  latitude    Float
-  longitude   Float
-  accuracy    Float?        // GPS accuracy in meters
-  speed       Float?        // km/h
-  heading     Float?        // Direction in degrees (0-360)
+  latitude  Float
+  longitude Float
+  accuracy  Float? // GPS accuracy in meters
+  speed     Float? // km/h
+  heading   Float? // Direction in degrees (0-360)
 
   // Contextual Data
-  isMoving    Boolean       @default(false)
-  batteryLevel Int?         // Percentage
-  isOnline    Boolean       @default(true)
+  isMoving     Boolean @default(false)
+  batteryLevel Int? // Percentage
+  isOnline     Boolean @default(true)
 
-  timestamp   DateTime      @default(now())
+  timestamp DateTime @default(now())
 
   @@index([driverId, timestamp])
   @@index([timestamp])
 }
 
 model DailyStats {
-  id                String   @id @default(uuid())
-  date              DateTime @db.Date @unique
+  id   String   @id @default(uuid())
+  date DateTime @unique @db.Date
 
   // Revenue Metrics
-  totalRevenue      Decimal  @default(0) @db.Decimal(10, 2)
-  cashCollected     Decimal  @default(0) @db.Decimal(10, 2)
-  creditGiven       Decimal  @default(0) @db.Decimal(10, 2)
+  totalRevenue  Decimal @default(0) @db.Decimal(10, 2)
+  cashCollected Decimal @default(0) @db.Decimal(10, 2)
+  creditGiven   Decimal @default(0) @db.Decimal(10, 2)
 
   // Order Metrics
-  ordersCompleted   Int      @default(0)
-  ordersCancelled   Int      @default(0)
-  ordersRescheduled Int      @default(0)
-  ordersPending     Int      @default(0)
+  ordersCompleted   Int @default(0)
+  ordersCancelled   Int @default(0)
+  ordersRescheduled Int @default(0)
+  ordersPending     Int @default(0)
 
   // Bottle Metrics
-  bottlesDelivered  Int      @default(0)
-  bottlesReturned   Int      @default(0)
-  bottlesDamaged    Int      @default(0)
-  bottleNetChange   Int      @default(0) // delivered - returned
+  bottlesDelivered Int @default(0)
+  bottlesReturned  Int @default(0)
+  bottlesDamaged   Int @default(0)
+  bottleNetChange  Int @default(0) // delivered - returned
 
   // Customer Metrics
-  newCustomers      Int      @default(0)
-  activeCustomers   Int      @default(0) // Customers with orders on this day
+  newCustomers    Int @default(0)
+  activeCustomers Int @default(0) // Customers with orders on this day
 
   // Driver Metrics
-  driversActive     Int      @default(0)
-  totalDistance     Float?   // km driven by all drivers
+  driversActive Int    @default(0)
+  totalDistance Float? // km driven by all drivers
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([date])
 }
 
 model DriverPerformanceMetrics {
-  id                String        @id @default(uuid())
-  driverId          String
-  driver            DriverProfile @relation(fields: [driverId], references: [id], onDelete: Cascade)
-  date              DateTime      @db.Date
+  id       String        @id @default(uuid())
+  driverId String
+  driver   DriverProfile @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  date     DateTime      @db.Date
 
   // Order Metrics
-  ordersAssigned    Int           @default(0)
-  ordersCompleted   Int           @default(0)
-  ordersCancelled   Int           @default(0)
-  ordersRescheduled Int           @default(0)
-  completionRate    Float         @default(0) // Percentage
+  ordersAssigned    Int   @default(0)
+  ordersCompleted   Int   @default(0)
+  ordersCancelled   Int   @default(0)
+  ordersRescheduled Int   @default(0)
+  completionRate    Float @default(0) // Percentage
 
   // Bottle Metrics
-  bottlesGiven      Int           @default(0)
-  bottlesTaken      Int           @default(0)
-  bottleDiscrepancy Int           @default(0) // Given - Taken
-  bottleAccuracy    Float         @default(100) // Percentage
+  bottlesGiven      Int   @default(0)
+  bottlesTaken      Int   @default(0)
+  bottleDiscrepancy Int   @default(0) // Given - Taken
+  bottleAccuracy    Float @default(100) // Percentage
 
   // Financial Metrics
-  totalBilled       Decimal       @default(0) @db.Decimal(10, 2)
-  cashCollected     Decimal       @default(0) @db.Decimal(10, 2)
-  creditGiven       Decimal       @default(0) @db.Decimal(10, 2)
-  collectionRate    Float         @default(0) // cashCollected / totalBilled * 100
+  totalBilled    Decimal @default(0) @db.Decimal(10, 2)
+  cashCollected  Decimal @default(0) @db.Decimal(10, 2)
+  creditGiven    Decimal @default(0) @db.Decimal(10, 2)
+  collectionRate Float   @default(0) // cashCollected / totalBilled * 100
 
   // Time Metrics
-  averageDeliveryTime Int?        // Minutes per delivery
-  totalDistance       Float?      // km driven
-  workingHours        Float?      // Hours on duty
+  averageDeliveryTime Int? // Minutes per delivery
+  totalDistance       Float? // km driven
+  workingHours        Float? // Hours on duty
 
   // Quality Metrics
-  customerComplaints  Int         @default(0)
-  performanceScore    Float       @default(0) // 0-100
+  customerComplaints Int   @default(0)
+  performanceScore   Float @default(0) // 0-100
 
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([driverId, date])
   @@index([date])
@@ -558,9 +560,9 @@ model DriverPerformanceMetrics {
 // --------------------------------------------------------
 
 model Expense {
-  id          String   @id @default(uuid())
-  amount      Decimal  @db.Decimal(10, 2)
-  date        DateTime @default(now())
+  id          String          @id @default(uuid())
+  amount      Decimal         @db.Decimal(10, 2)
+  date        DateTime        @default(now())
   category    ExpenseCategory
   description String?
   receiptUrl  String?
@@ -570,19 +572,19 @@ model Expense {
   spentByUser   User   @relation("ExpenseSpender", fields: [spentByUserId], references: [id])
 
   // Approval Workflow
-  status        ExpenseStatus @default(APPROVED) // Admin created = Approved. Driver created = Pending.
-  approvedById  String?
-  approvedBy    User?         @relation("ExpenseApprover", fields: [approvedById], references: [id])
+  status       ExpenseStatus @default(APPROVED) // Admin created = Approved. Driver created = Pending.
+  approvedById String?
+  approvedBy   User?         @relation("ExpenseApprover", fields: [approvedById], references: [id])
 
   // Context
-  driverId      String?       // If related to a driver's route/vehicle
-  driver        DriverProfile? @relation(fields: [driverId], references: [id])
+  driverId String? // If related to a driver's route/vehicle
+  driver   DriverProfile? @relation(fields: [driverId], references: [id])
 
   // Financial Source
   paymentMethod ExpensePaymentMethod @default(CASH_ON_HAND)
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([date])
   @@index([status])
@@ -591,20 +593,20 @@ model Expense {
 }
 
 model Notification {
-  id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  title       String
-  body        String
-  type        String?  // "ORDER_ASSIGNED", "EXPENSE_APPROVED"
-  data        Json?    // { orderId: "..." }
+  title String
+  body  String
+  type  String? // "ORDER_ASSIGNED", "EXPENSE_APPROVED"
+  data  Json? // { orderId: "..." }
 
-  read        Boolean  @default(false)
-  readAt      DateTime?
+  read   Boolean   @default(false)
+  readAt DateTime?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId, read])
   @@index([createdAt])

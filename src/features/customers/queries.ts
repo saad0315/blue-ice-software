@@ -267,6 +267,13 @@ export async function getCustomerWithOrderHistory(customerId: string) {
           description: true,
         },
       },
+      defaultProduct: {
+        select: {
+          id: true,
+          name: true,
+          sku: true,
+        },
+      },
       orders: {
         take: 5,
         orderBy: {

@@ -152,5 +152,8 @@ export const columns: ColumnDef<Customer>[] = [
   {
     id: 'actions',
     cell: ({ row }) => <ActionCell customer={row.original} />,
+    meta: {
+      sticky: true,
+    },
   },
 ];

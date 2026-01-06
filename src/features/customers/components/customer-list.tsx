@@ -162,14 +162,18 @@ export function CustomerTable<TData, TValue>({ columns, data, isLoading, paginat
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div className="rounded-md border">
+      <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
+                  const isSticky = header.column.columnDef.meta?.sticky;
                   return (
-                    <TableHead key={header.id}>
+                    <TableHead
+                      key={header.id}
+                      className={isSticky ? 'sticky right-0 bg-background shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.1)] z-10' : ''}
+                    >
                       {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                     </TableHead>
                   );
@@ -190,9 +194,17 @@ export function CustomerTable<TData, TValue>({ columns, data, isLoading, paginat
             ) : table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
-                  ))}
+                  {row.getVisibleCells().map((cell) => {
+                    const isSticky = cell.column.columnDef.meta?.sticky;
+                    return (
+                      <TableCell
+                        key={cell.id}
+                        className={isSticky ? 'sticky right-0 bg-background shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.1)] z-10' : ''}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    );
+                  })}
                 </TableRow>
               ))
             ) : (

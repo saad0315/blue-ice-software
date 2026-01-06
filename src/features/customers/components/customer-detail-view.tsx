@@ -1,7 +1,7 @@
 'use client';
 
 import { format } from 'date-fns';
-import { ArrowLeft, CreditCard, MapPin, Package, Pencil, Phone, Route as RouteIcon, Trash, Wallet } from 'lucide-react';
+import { ArrowLeft, Calendar, CreditCard, MapPin, Package, Pencil, Phone, Route as RouteIcon, ShoppingCart, Trash, User, Wallet } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 import { PageError } from '@/components/page-error';
@@ -18,6 +18,12 @@ import { useConfirm } from '@/hooks/use-confirm';
 interface CustomerDetailViewProps {
   customerId: string;
 }
+
+// Helper function to convert delivery day numbers to day names
+const getDayName = (dayNumber: number): string => {
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  return days[dayNumber] || 'Unknown';
+};
 
 export const CustomerDetailView = ({ customerId }: CustomerDetailViewProps) => {
   const router = useRouter();
@@ -74,6 +80,79 @@ export const CustomerDetailView = ({ customerId }: CustomerDetailViewProps) => {
             Delete
           </Button>
         </div>
+      </div>
+
+      {/* Customer Type & Delivery Info */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base font-semibold">
+              <User className="size-4" />
+              Customer Type
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Badge variant="secondary" className="text-sm">
+              {customer.type}
+            </Badge>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base font-semibold">
+              <Calendar className="size-4" />
+              Delivery Schedule
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {customer.deliveryDays && customer.deliveryDays.length > 0 ? (
+                customer.deliveryDays.map((day: number) => (
+                  <Badge key={day} variant="outline" className="text-xs">
+                    {getDayName(day)}
+                  </Badge>
+                ))
+              ) : (
+                <span className="text-sm text-muted-foreground">Not set</span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base font-semibold">
+              <ShoppingCart className="size-4" />
+              Default Order
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Product</p>
+              <p className="text-base">{customer.defaultProduct?.name || '-'}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Quantity</p>
+              <p className="text-base">{customer.defaultQuantity || '-'}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base font-semibold">
+              <MapPin className="size-4" />
+              Delivery Details
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Floor</p>
+              <p className="text-base">{customer.floorNumber} {customer.hasLift ? '(Lift Available)' : '(No Lift)'}</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">

@@ -68,9 +68,9 @@ export function OrderTable<TData extends { id: string }, TValue>({ columns, data
   const [localDateRange, setLocalDateRange] = React.useState<DateRange | undefined>(
     filters.from && filters.to
       ? {
-          from: new Date(filters.from),
-          to: new Date(filters.to),
-        }
+        from: new Date(filters.from),
+        to: new Date(filters.to),
+      }
       : undefined,
   );
 
@@ -259,14 +259,15 @@ export function OrderTable<TData extends { id: string }, TValue>({ columns, data
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div className="rounded-md border">
+      <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
+                  const isSticky = header.column.columnDef.meta?.sticky;
                   return (
-                    <TableHead key={header.id}>
+                    <TableHead key={header.id} className={isSticky ? 'sticky right-0 bg-background shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.1)] z-10' : ''}>
                       {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                     </TableHead>
                   );
@@ -287,9 +288,20 @@ export function OrderTable<TData extends { id: string }, TValue>({ columns, data
             ) : table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
-                  {row.getVisibleCells().map((cell) => (
+                  {/* {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
-                  ))}
+                  ))} */}
+                  {row.getVisibleCells().map((cell) => {
+                    const isSticky = cell.column.columnDef.meta?.sticky;
+                    return (
+                      <TableCell
+                        key={cell.id}
+                        className={isSticky ? 'sticky right-0 bg-background shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.1)] z-10' : ''}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    );
+                  })}
                 </TableRow>
               ))
             ) : (
@@ -302,7 +314,7 @@ export function OrderTable<TData extends { id: string }, TValue>({ columns, data
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end space-x-2 py-4">
+      <div className="glass-card sticky bottom-4 z-20 border-white/40 flex items-center justify-end space-x-2 px-2 py-1 mt-2  ">
         <div className="flex-1 text-sm text-muted-foreground">
           {selectedIds.length > 0 && (
             <span>
@@ -310,12 +322,35 @@ export function OrderTable<TData extends { id: string }, TValue>({ columns, data
             </span>
           )}
           {pagination && (
-            <span className="ml-4">
-              Page {pagination.page} of {pagination.totalPages} ({pagination.total} total orders)
-            </span>
+            // <span className="ml-4">
+            //   Page {pagination.page} of {pagination.totalPages} ({pagination.total} total orders)
+            // </span>
+            <>
+              Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} Orders
+              <div className="inline-block ml-4">
+                <Select
+                  value={filters.limit?.toString() || '20'}
+                  onValueChange={(val) => setFilters({ limit: parseInt(val), page: 1 })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Per page" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="20">20 per page</SelectItem>
+                    <SelectItem value="50">50 per page</SelectItem>
+                    <SelectItem value="100">100 per page</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
           )}
         </div>
         <div className="space-x-2">
+          {pagination && (
+            <span className="text-sm text-muted-foreground">
+              Page {pagination.page} of {pagination.totalPages}
+            </span>
+          )}
           <Button
             variant="outline"
             size="sm"

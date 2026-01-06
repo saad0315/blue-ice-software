@@ -21,6 +21,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useConfirm } from '@/hooks/use-confirm';
 
 import { useDeleteOrder } from '../api/use-delete-order';
+import { useOrderModal } from '../hooks/use-order-modal';
 
 export type Order = {
   id: string;
@@ -40,6 +41,7 @@ export type Order = {
 
 const ActionCell = ({ order }: { order: Order }) => {
   const router = useRouter();
+  const { open } = useOrderModal();
   const { mutate: deleteOrder, isPending } = useDeleteOrder();
   const [ConfirmDialog, confirm] = useConfirm('Delete Order', `Are you sure you want to delete order #${order.readableId}?`, 'destructive');
 
@@ -63,10 +65,10 @@ const ActionCell = ({ order }: { order: Order }) => {
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>Actions</DropdownMenuLabel>
           <DropdownMenuItem onClick={() => router.push(`/orders/${order.id}`)}>
-            <Pencil className="mr-2 h-4 w-4" />
+            <Info className="mr-2 h-4 w-4" />
             Order Details
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => router.push(`/orders/${order.id}/edit`)}>
+          <DropdownMenuItem onClick={() => open(order.id)}>
             <Pencil className="mr-2 h-4 w-4" />
             Edit Order
           </DropdownMenuItem>
@@ -127,6 +129,10 @@ export const columns: ColumnDef<Order>[] = [
   {
     accessorKey: 'customer.user.name',
     header: 'Customer',
+  },
+  {
+    accessorKey: 'customer.route.name',
+    header: 'Route',
   },
   {
     accessorKey: 'driver.user.name',
@@ -203,5 +209,8 @@ export const columns: ColumnDef<Order>[] = [
   {
     id: 'actions',
     cell: ({ row }) => <ActionCell order={row.original} />,
+    meta: {
+      sticky: true,
+    },
   },
 ];

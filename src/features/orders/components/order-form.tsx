@@ -111,12 +111,24 @@ export const OrderForm = ({ orderId, onCancel }: OrderFormProps) => {
       updateOrder(
         { param: { id: orderId }, json: data },
         {
-          onSuccess: () => router.push('/orders'),
+          onSuccess: () => {
+            if (onCancel) {
+              onCancel();
+            } else {
+              router.push('/orders');
+            }
+          },
         },
       );
     } else {
       createOrder(data, {
-        onSuccess: () => router.push('/orders'),
+        onSuccess: () => {
+          if (onCancel) {
+            onCancel();
+          } else {
+            router.push('/orders');
+          }
+        },
       });
     }
   };

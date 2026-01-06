@@ -99,6 +99,19 @@ body {
   }
 }
 
+.hide-scrollbar {
+  /* Internet Explorer */
+  -ms-overflow-style: none;
+
+  /* Firefox */
+  scrollbar-width: none;
+}
+
+/* Chromium-based browsers */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Custom Scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
   height: 5px;

@@ -15,6 +15,7 @@ interface UseGetOrdersProps {
 export const useGetOrders = (props?: UseGetOrdersProps) => {
   const searchParams = useSearchParams();
   const search = searchParams.get('search') || undefined;
+  const routeId = searchParams.get('routeId') || undefined;
   const status = props?.status || (searchParams.get('status') as OrderStatus) || undefined;
   const date = props?.date || searchParams.get('date') || undefined;
   const from = props?.from || searchParams.get('from') || undefined;
@@ -24,11 +25,12 @@ export const useGetOrders = (props?: UseGetOrdersProps) => {
   const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : 20;
 
   return useQuery({
-    queryKey: ['orders', { search, status, date, from, to, driverId, page, limit }],
+    queryKey: ['orders', { search, routeId, status, date, from, to, driverId, page, limit }],
     queryFn: async () => {
       const response = await client.api.orders.$get({
         query: {
           search,
+          routeId,
           status,
           date,
           from,
