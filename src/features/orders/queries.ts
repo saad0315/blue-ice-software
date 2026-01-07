@@ -2,6 +2,7 @@ import { OrderStatus, PaymentMethod, Prisma } from '@prisma/client';
 
 import { db } from '@/lib/db';
 import { sendPushNotification } from '@/lib/firebase-admin';
+import { emitOrderStatus } from '@/lib/socket-emitter';
 
 export async function getOrders(params: {
   search?: string;
@@ -890,10 +891,45 @@ export async function updateOrder(
       }
     }
 
-    return await tx.order.findUnique({
+    // Get final order with relations for socket emission
+    const finalOrder = await tx.order.findUnique({
       where: { id },
-      include: { orderItems: true },
+      include: {
+        orderItems: true,
+        customer: {
+          include: {
+            user: { select: { name: true } },
+          },
+        },
+        driver: {
+          include: {
+            user: { select: { name: true } },
+          },
+        },
+      },
     });
+
+    // Emit order status change if status was updated
+    if (finalOrder && orderData.status && orderData.status !== existingOrder.status) {
+      try {
+        await emitOrderStatus({
+          orderId: finalOrder.id,
+          readableId: finalOrder.readableId,
+          status: finalOrder.status,
+          previousStatus: existingOrder.status,
+          customerId: finalOrder.customerId,
+          customerName: finalOrder.customer?.user?.name || 'Unknown',
+          driverId: finalOrder.driverId || undefined,
+          driverName: finalOrder.driver?.user?.name,
+          timestamp: new Date(),
+        });
+      } catch (emitError) {
+        // Log but don't fail the transaction
+        console.warn('[ORDER_STATUS_EMIT_WARNING]:', emitError);
+      }
+    }
+
+    return finalOrder;
   });
 }
 

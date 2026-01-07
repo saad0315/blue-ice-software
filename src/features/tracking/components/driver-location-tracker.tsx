@@ -76,6 +76,7 @@ export function DriverLocationTracker() {
     }
 
     let lastPosition: GeolocationPosition | null = null;
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
     // Watch position with high accuracy
     watchIdRef.current = navigator.geolocation.watchPosition(
@@ -118,8 +119,8 @@ export function DriverLocationTracker() {
         setIsTracking(false);
       },
       {
-        enableHighAccuracy: true,
-        timeout: 10000,
+        enableHighAccuracy: isMobile,
+        timeout: isMobile ? 10000 : 15000,
         maximumAge: 0,
       },
     );
@@ -143,7 +144,7 @@ export function DriverLocationTracker() {
           },
         });
       }
-    }, 30000); // 30 seconds
+    }, 30000);
 
     return () => {
       if (watchIdRef.current !== null) {

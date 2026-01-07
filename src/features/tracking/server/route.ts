@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { getDriverRouteHistory, getLiveDriverLocations, toggleDriverDutyStatus, updateDriverLocation } from '@/features/tracking/queries';
 import { sessionMiddleware } from '@/lib/session-middleware';
+import { emitDriverLocation, emitDriverPresence } from '@/lib/socket-emitter';
 
 const app = new Hono()
   // Update driver location (called by driver app every 30 seconds)
@@ -50,14 +51,24 @@ const app = new Hono()
           ...locationData,
         });
 
-        // Broadcast location update via WebSocket (if available)
-        // This will be implemented in the WebSocket server
-        if ((ctx.env as any)?.io) {
-          (ctx.env as any).io.emit('driver-location-update', {
+        // Emit location update via WebSocket and Redis
+        try {
+          await emitDriverLocation({
             driverId: driverProfile.id,
-            ...locationData,
+            driverName: user.name,
+            latitude: locationData.latitude,
+            longitude: locationData.longitude,
+            accuracy: locationData.accuracy,
+            speed: locationData.speed,
+            heading: locationData.heading,
+            isMoving: locationData.isMoving,
+            batteryLevel: locationData.batteryLevel,
+            isOnDuty: true,
             timestamp: new Date(),
           });
+        } catch (emitError) {
+          // Log but don't fail the request if socket emission fails
+          console.warn('[SOCKET_EMIT_WARNING]:', emitError);
         }
 
         return ctx.json({
@@ -182,13 +193,17 @@ const app = new Hono()
       try {
         const driver = await toggleDriverDutyStatus(driverId, isOnDuty);
 
-        // Broadcast duty status change
-        if ((ctx.env as any)?.io) {
-          (ctx.env as any).io.emit('driver-duty-status-change', {
-            driverId,
-            isOnDuty,
+        // Emit presence update via WebSocket and Redis
+        try {
+          await emitDriverPresence({
+            driverId: driver.id,
             driverName: driver.user.name,
+            isOnline: true,
+            isOnDuty,
+            timestamp: new Date(),
           });
+        } catch (emitError) {
+          console.warn('[SOCKET_EMIT_WARNING]:', emitError);
         }
 
         return ctx.json({

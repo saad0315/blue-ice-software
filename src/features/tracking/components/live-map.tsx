@@ -1,12 +1,14 @@
 'use client';
 
-import { Loader2 } from 'lucide-react';
+import { Loader2, Radio, Wifi, WifiOff } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useState } from 'react';
 
+import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
-import { useLiveLocations } from '../api/use-live-locations';
+import { useDriverLocationsRealtime } from '../hooks/use-driver-locations-realtime';
 import { DriverSidebar } from './driver-sidebar';
 
 interface LiveMapProps {
@@ -25,11 +27,63 @@ const LiveMapCore = dynamic(() => import('./live-map-core'), {
   ),
 });
 
+// Connection status indicator component
+function ConnectionStatus({ isConnected, isRealtime }: { isConnected: boolean; isRealtime: boolean }) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge variant={isConnected ? 'default' : 'secondary'} className="absolute right-2 top-2 z-[1000] gap-1.5">
+            {isConnected ? (
+              <>
+                <Radio className="h-3 w-3 animate-pulse" />
+                Real-time
+              </>
+            ) : isRealtime ? (
+              <>
+                <WifiOff className="h-3 w-3" />
+                Reconnecting...
+              </>
+            ) : (
+              <>
+                <Wifi className="h-3 w-3" />
+                Polling
+              </>
+            )}
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent side="left">
+          {isConnected
+            ? 'Connected via WebSocket - Receiving real-time updates'
+            : 'Using polling fallback - Updates every 10 seconds'}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 export function LiveMap({ showSidebar = true, ...mapProps }: LiveMapProps) {
-  const { data: drivers, isLoading, error } = useLiveLocations();
+  const { drivers, isLoading, error, isConnected, isRealtime } = useDriverLocationsRealtime();
   const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
   const [fitAllTrigger, setFitAllTrigger] = useState(0);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  // Transform realtime drivers to the format expected by LiveMapCore
+  const mappedDrivers = drivers.map((driver) => ({
+    driverId: driver.driverId,
+    name: driver.driverName,
+    phoneNumber: '', // Not available in realtime data
+    imageUrl: null, // Not available in realtime data
+    vehicleNo: null, // Not available in realtime data
+    latitude: driver.latitude,
+    longitude: driver.longitude,
+    lastUpdate: driver.lastUpdate?.toISOString() || null,
+    isOnDuty: driver.isOnDuty,
+    isMoving: driver.isMoving,
+    batteryLevel: driver.batteryLevel,
+    speed: driver.speed,
+    currentOrder: null, // Will be populated from polling data if needed
+  }));
 
   const handleDriverSelect = (driver: { driverId: string }) => {
     setSelectedDriverId(driver.driverId);
@@ -54,7 +108,7 @@ export function LiveMap({ showSidebar = true, ...mapProps }: LiveMapProps) {
     );
   }
 
-  if (isLoading || !drivers) {
+  if (isLoading && drivers.length === 0) {
     return (
       <div className="flex items-center justify-center rounded-lg border bg-muted/20" style={{ height: mapProps.height || '600px' }}>
         <div className="text-center">
@@ -67,13 +121,16 @@ export function LiveMap({ showSidebar = true, ...mapProps }: LiveMapProps) {
 
   if (!showSidebar) {
     return (
-      <LiveMapCore
-        {...mapProps}
-        drivers={drivers}
-        selectedDriverId={selectedDriverId}
-        onDriverSelect={setSelectedDriverId}
-        fitAllTrigger={fitAllTrigger}
-      />
+      <div className="relative h-full w-full">
+        <ConnectionStatus isConnected={isConnected} isRealtime={isRealtime} />
+        <LiveMapCore
+          {...mapProps}
+          drivers={mappedDrivers}
+          selectedDriverId={selectedDriverId}
+          onDriverSelect={setSelectedDriverId}
+          fitAllTrigger={fitAllTrigger}
+        />
+      </div>
     );
   }
 
@@ -81,7 +138,7 @@ export function LiveMap({ showSidebar = true, ...mapProps }: LiveMapProps) {
     <div className="flex h-full w-full gap-0">
       {/* Driver Sidebar */}
       <DriverSidebar
-        drivers={drivers as any}
+        drivers={mappedDrivers as any}
         selectedDriverId={selectedDriverId}
         onDriverSelect={handleDriverSelect}
         onFitAllDrivers={handleFitAllDrivers}
@@ -90,10 +147,11 @@ export function LiveMap({ showSidebar = true, ...mapProps }: LiveMapProps) {
       />
 
       {/* Map */}
-      <div className="flex-1">
+      <div className="relative flex-1">
+        <ConnectionStatus isConnected={isConnected} isRealtime={isRealtime} />
         <LiveMapCore
           {...mapProps}
-          drivers={drivers}
+          drivers={mappedDrivers}
           selectedDriverId={selectedDriverId}
           onDriverSelect={setSelectedDriverId}
           fitAllTrigger={fitAllTrigger}
