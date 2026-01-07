@@ -247,14 +247,10 @@ export async function getOrderForInvoice(id: string) {
 export async function generateOrders(data: { date: string; routeId?: string }) {
   const { date, routeId } = data;
   const scheduledDate = new Date(date);
-  // Get day of week: 0=Sunday, 1=Monday, etc.
-  // getDay() returns 0 for Sunday
-  let dayOfWeek = scheduledDate.getDay();
-  // We use 0=Sunday in our logic, matching JS getDay()
+  const dayOfWeek = scheduledDate.getDay();
 
   // 1. Find matching customers
   const where: Prisma.CustomerProfileWhereInput = {
-    // CustomerProfile doesn't have isActive, User does.
     user: {
       isActive: true,
       suspended: false,
@@ -263,7 +259,7 @@ export async function generateOrders(data: { date: string; routeId?: string }) {
       has: dayOfWeek,
     },
     defaultProductId: {
-      not: null, // Must have a default product
+      not: null,
     },
     ...(routeId ? { routeId } : {}),
   };
@@ -285,32 +281,22 @@ export async function generateOrders(data: { date: string; routeId?: string }) {
   }
 
   // 2. Filter out customers who already have an order for this date
-  // Using a transaction to prevent race conditions during concurrent order generation
-  let existingCustomerIds: Set<string>;
-
-  await db.$transaction(async (tx) => {
-    const existingOrders = await tx.order.findMany({
-      where: {
-        scheduledDate: scheduledDate,
-        customerId: { in: customers.map((c) => c.id) },
-      },
-      select: {
-        customerId: true,
-      },
-    });
-
-    existingCustomerIds = new Set(existingOrders.map((o) => o.customerId));
+  const existingOrders = await db.order.findMany({
+    where: {
+      scheduledDate: scheduledDate,
+      customerId: { in: customers.map((c) => c.id) },
+    },
+    select: { customerId: true },
   });
 
-  const eligibleCustomers = customers.filter((c) => !existingCustomerIds!.has(c.id));
+  const existingCustomerIds = new Set(existingOrders.map((o) => o.customerId));
+  const eligibleCustomers = customers.filter((c) => !existingCustomerIds.has(c.id));
 
   if (eligibleCustomers.length === 0) {
     return { count: 0, message: 'Orders already exist for all matching customers' };
   }
 
   // 3. Fetch Product Prices and check stock availability
-  // We need to know the price for the OrderItem.
-  // Optimization: Fetch all unique products needed.
   const productIds = Array.from(new Set(eligibleCustomers.map((c) => c.defaultProductId!)));
   const products = await db.product.findMany({
     where: { id: { in: productIds } },
@@ -351,7 +337,6 @@ export async function generateOrders(data: { date: string; routeId?: string }) {
     const orderAmount = product.basePrice.mul(c.defaultQuantity);
     const newBalance = c.cashBalance.sub(orderAmount);
 
-    // Check if new balance would exceed credit limit
     return newBalance.gte(c.creditLimit.neg());
   });
 
@@ -364,55 +349,61 @@ export async function generateOrders(data: { date: string; routeId?: string }) {
     };
   }
 
-  // 7. Create Orders Transaction
+  // 7. Create Orders in batches to avoid transaction timeout
+  const BATCH_SIZE = 50;
   let createdCount = 0;
 
-  await db.$transaction(
-    async (tx) => {
-      // Re-check for duplicates within transaction to prevent race conditions
-      const existingInTx = await tx.order.findMany({
-        where: {
-          scheduledDate: scheduledDate,
-          customerId: { in: customersToCreate.map((c) => c.id) },
-        },
-        select: { customerId: true },
-      });
+  for (let i = 0; i < customersToCreate.length; i += BATCH_SIZE) {
+    const batch = customersToCreate.slice(i, i + BATCH_SIZE);
 
-      const existingInTxIds = new Set(existingInTx.map((o) => o.customerId));
-      const finalCustomersToCreate = customersToCreate.filter((c) => !existingInTxIds.has(c.id));
-
-      for (const customer of finalCustomersToCreate) {
-        const product = productMap.get(customer.defaultProductId!);
-        if (!product) continue; // Should not happen due to where clause, but safety check
-
-        const price = product.basePrice;
-        const quantity = customer.defaultQuantity;
-        const totalAmount = price.mul(quantity);
-
-        await tx.order.create({
-          data: {
-            customerId: customer.id,
+    await db.$transaction(
+      async (tx) => {
+        // Re-check for duplicates within this batch
+        const batchCustomerIds = batch.map((c) => c.id);
+        const existingInBatch = await tx.order.findMany({
+          where: {
             scheduledDate: scheduledDate,
-            status: OrderStatus.SCHEDULED,
-            totalAmount: totalAmount,
+            customerId: { in: batchCustomerIds },
+          },
+          select: { customerId: true },
+        });
 
-            orderItems: {
-              create: {
-                productId: product.id,
-                quantity: quantity,
-                priceAtTime: price,
+        const existingInBatchIds = new Set(existingInBatch.map((o) => o.customerId));
+
+        for (const customer of batch) {
+          if (existingInBatchIds.has(customer.id)) continue;
+
+          const product = productMap.get(customer.defaultProductId!);
+          if (!product) continue;
+
+          const price = product.basePrice;
+          const quantity = customer.defaultQuantity;
+          const totalAmount = price.mul(quantity);
+
+          await tx.order.create({
+            data: {
+              customerId: customer.id,
+              scheduledDate: scheduledDate,
+              status: OrderStatus.SCHEDULED,
+              totalAmount: totalAmount,
+              orderItems: {
+                create: {
+                  productId: product.id,
+                  quantity: quantity,
+                  priceAtTime: price,
+                },
               },
             },
-          },
-        });
-        createdCount++;
-      }
-    },
-    {
-      maxWait: 5000, // 5s
-      timeout: 10000, // 10s
-    },
-  );
+          });
+          createdCount++;
+        }
+      },
+      {
+        maxWait: 10000, // 10s
+        timeout: 30000, // 30s per batch
+      },
+    );
+  }
 
   const message =
     skippedDueToCredit > 0
@@ -420,6 +411,186 @@ export async function generateOrders(data: { date: string; routeId?: string }) {
       : `Successfully created ${createdCount} orders`;
 
   return { count: createdCount, message };
+}
+
+// Types for streaming response
+export type GenerateOrdersProgress = {
+  type: 'progress' | 'complete' | 'error';
+  current?: number;
+  total?: number;
+  created?: number;
+  message?: string;
+  skippedDueToCredit?: number;
+};
+
+// Streaming version for real-time progress updates
+export async function* generateOrdersStream(data: { date: string; routeId?: string }): AsyncGenerator<GenerateOrdersProgress> {
+  const { date, routeId } = data;
+  const scheduledDate = new Date(date);
+  const dayOfWeek = scheduledDate.getDay();
+
+  // 1. Find matching customers
+  const where: Prisma.CustomerProfileWhereInput = {
+    user: {
+      isActive: true,
+      suspended: false,
+    },
+    deliveryDays: {
+      has: dayOfWeek,
+    },
+    defaultProductId: {
+      not: null,
+    },
+    ...(routeId ? { routeId } : {}),
+  };
+
+  const customers = await db.customerProfile.findMany({
+    where,
+    select: {
+      id: true,
+      defaultProductId: true,
+      defaultQuantity: true,
+      routeId: true,
+      cashBalance: true,
+      creditLimit: true,
+    },
+  });
+
+  if (customers.length === 0) {
+    yield { type: 'complete', created: 0, message: 'No matching customers found' };
+    return;
+  }
+
+  // 2. Filter out customers who already have an order for this date
+  const existingOrders = await db.order.findMany({
+    where: {
+      scheduledDate: scheduledDate,
+      customerId: { in: customers.map((c) => c.id) },
+    },
+    select: { customerId: true },
+  });
+
+  const existingCustomerIds = new Set(existingOrders.map((o) => o.customerId));
+  const eligibleCustomers = customers.filter((c) => !existingCustomerIds.has(c.id));
+
+  if (eligibleCustomers.length === 0) {
+    yield { type: 'complete', created: 0, message: 'Orders already exist for all matching customers' };
+    return;
+  }
+
+  // 3. Fetch Products
+  const productIds = Array.from(new Set(eligibleCustomers.map((c) => c.defaultProductId!)));
+  const products = await db.product.findMany({
+    where: { id: { in: productIds } },
+    select: { id: true, basePrice: true, stockFilled: true },
+  });
+  const productMap = new Map(products.map((p) => [p.id, p]));
+
+  // 4. Calculate stock needed
+  const stockNeeded = new Map<string, number>();
+  for (const customer of eligibleCustomers) {
+    const productId = customer.defaultProductId!;
+    const currentNeed = stockNeeded.get(productId) || 0;
+    stockNeeded.set(productId, currentNeed + customer.defaultQuantity);
+  }
+
+  // 5. Validate stock
+  for (const [productId, needed] of Array.from(stockNeeded.entries())) {
+    const product = productMap.get(productId);
+    if (!product || product.stockFilled < needed) {
+      yield { type: 'error', message: 'Insufficient stock for products. Cannot generate orders.' };
+      return;
+    }
+  }
+
+  // 6. Filter by credit limit
+  const customersToCreate = eligibleCustomers.filter((c) => {
+    const product = productMap.get(c.defaultProductId!);
+    if (!product) return false;
+    const orderAmount = product.basePrice.mul(c.defaultQuantity);
+    const newBalance = c.cashBalance.sub(orderAmount);
+    return newBalance.gte(c.creditLimit.neg());
+  });
+
+  const skippedDueToCredit = eligibleCustomers.length - customersToCreate.length;
+
+  if (customersToCreate.length === 0) {
+    yield { type: 'complete', created: 0, message: `All ${skippedDueToCredit} eligible customers have reached their credit limit` };
+    return;
+  }
+
+  // 7. Create orders with progress updates
+  const BATCH_SIZE = 10; // Smaller batches for more frequent progress updates
+  let createdCount = 0;
+  const total = customersToCreate.length;
+
+  yield { type: 'progress', current: 0, total, created: 0 };
+
+  for (let i = 0; i < customersToCreate.length; i += BATCH_SIZE) {
+    const batch = customersToCreate.slice(i, i + BATCH_SIZE);
+
+    try {
+      await db.$transaction(
+        async (tx) => {
+          const batchCustomerIds = batch.map((c) => c.id);
+          const existingInBatch = await tx.order.findMany({
+            where: {
+              scheduledDate: scheduledDate,
+              customerId: { in: batchCustomerIds },
+            },
+            select: { customerId: true },
+          });
+
+          const existingInBatchIds = new Set(existingInBatch.map((o) => o.customerId));
+
+          for (const customer of batch) {
+            if (existingInBatchIds.has(customer.id)) continue;
+
+            const product = productMap.get(customer.defaultProductId!);
+            if (!product) continue;
+
+            const price = product.basePrice;
+            const quantity = customer.defaultQuantity;
+            const totalAmount = price.mul(quantity);
+
+            await tx.order.create({
+              data: {
+                customerId: customer.id,
+                scheduledDate: scheduledDate,
+                status: OrderStatus.SCHEDULED,
+                totalAmount: totalAmount,
+                orderItems: {
+                  create: {
+                    productId: product.id,
+                    quantity: quantity,
+                    priceAtTime: price,
+                  },
+                },
+              },
+            });
+            createdCount++;
+          }
+        },
+        {
+          maxWait: 10000,
+          timeout: 20000, // 20s per small batch
+        },
+      );
+
+      yield { type: 'progress', current: Math.min(i + BATCH_SIZE, total), total, created: createdCount };
+    } catch (error) {
+      console.error('Batch error:', error);
+      yield { type: 'error', message: `Error processing batch: ${error instanceof Error ? error.message : 'Unknown error'}` };
+      return;
+    }
+  }
+
+  const message =
+    skippedDueToCredit > 0
+      ? `Successfully created ${createdCount} orders. ${skippedDueToCredit} customers skipped due to credit limit.`
+      : `Successfully created ${createdCount} orders`;
+
+  yield { type: 'complete', created: createdCount, message, skippedDueToCredit };
 }
 
 export async function createOrder(data: {
