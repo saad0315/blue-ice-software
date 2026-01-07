@@ -13,12 +13,25 @@ import { CUSTOMER_TYPES, DELIVERY_DAYS } from '@/features/customers/constants';
 import type { CreateCustomerInput } from '@/features/customers/schema';
 import { useGetProducts } from '@/features/products/api/use-get-products';
 import { cn } from '@/lib/utils';
+import { useEffect } from 'react';
 
 export const SchedulePricingStep = () => {
   const form = useFormContext<CreateCustomerInput>();
   const selectedDays = form.watch('deliveryDays') || [];
   const { data: productsData, isLoading: isLoadingProducts } = useGetProducts();
   const products = productsData || [];
+
+  useEffect(() => {
+    if (products.length > 0) {
+      if (form.getValues('defaultProductId') === null) {
+        form.setValue('defaultProductId', products[0].id);
+      }
+
+      if (form.getValues('defaultQuantity') === 1) {
+        form.setValue('defaultQuantity', 2);
+      }
+    }
+  }, [products, form]);
 
   const toggleDay = (dayValue: number) => {
     const currentDays = form.getValues('deliveryDays') || [];

@@ -105,6 +105,16 @@ export const OrderForm = ({ orderId, onCancel }: OrderFormProps) => {
     }
   }, [order, form]);
 
+  useEffect(() => {
+    if (!isEdit && products.length > 0 && fields.length === 0) {
+      append({
+        productId: products[0].id,
+        quantity: 2,
+        price: undefined,
+      });
+    }
+  }, [isEdit, products, fields, append]);
+
   const onSubmit = (data: CreateOrderInput) => {
     if (isEdit && orderId) {
       // @ts-ignore
