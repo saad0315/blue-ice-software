@@ -1,116 +1,118 @@
 'use client';
 
-import { ExpenseStatus } from '@prisma/client';
-import { format } from 'date-fns';
-import { Check, X } from 'lucide-react';
+import {
+  ColumnDef,
+  flexRender,
+  getCoreRowModel,
+  getPaginationRowModel,
+  useReactTable,
+} from '@tanstack/react-table';
+import { Loader2 } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 import { useGetExpenses } from '../api/use-expenses';
-import { useUpdateExpense } from '../api/use-update-expense';
+import { useUpdateExpenseStatus } from '../api/use-update-expense-status';
 
-export const ExpensesTable = () => {
-  const { data, isLoading } = useGetExpenses();
-  const { mutate: updateStatus, isPending } = useUpdateExpense();
+interface ExpensesTableProps<TData, TValue> {
+  columns: ColumnDef<TData, TValue>[];
+  data: TData[];
+  isLoading?: boolean;
+}
 
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
+export function ExpensesTable<TData, TValue>({
+  columns,
+  data,
+  isLoading,
+}: ExpensesTableProps<TData, TValue>) {
+  const { mutate: updateStatus, isPending } = useUpdateExpenseStatus();
 
-  // @ts-ignore
-  const expenses = data?.expenses || [];
+  const table = useReactTable({
+    data,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  });
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const page = parseInt(searchParams.get('page') || '1', 10);
+
+  const handlePageChange = (newPage: number) => {
+    const params = new URLSearchParams(searchParams);
+    params.set('page', newPage.toString());
+    router.push(`?${params.toString()}`);
+  };
 
   return (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Date</TableHead>
-            <TableHead>Category</TableHead>
-            <TableHead>Description</TableHead>
-            <TableHead>Amount</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Spent By</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {expenses.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={7} className="text-center">
-                No expenses found
-              </TableCell>
-            </TableRow>
-          ) : (
-            expenses.map((expense: any) => (
-              <TableRow key={expense.id}>
-                <TableCell>{format(new Date(expense.date), 'MMM dd, yyyy')}</TableCell>
-                <TableCell>
-                  <Badge variant="outline">{expense.category}</Badge>
-                </TableCell>
-                <TableCell className="max-w-[200px] truncate" title={expense.description}>{expense.description}</TableCell>
-                <TableCell>PKR {expense.amount}</TableCell>
-                <TableCell>
-                  <Badge
-                    variant={
-                      expense.status === ExpenseStatus.APPROVED
-                        ? 'default'
-                        : expense.status === ExpenseStatus.REJECTED
-                          ? 'destructive'
-                          : 'secondary'
-                    }
-                  >
-                    {expense.status}
-                  </Badge>
-                </TableCell>
-                <TableCell>{expense.spentByUser?.name}</TableCell>
-                <TableCell className="text-right">
-                  {expense.status === ExpenseStatus.PENDING && (
-                    <div className="flex justify-end gap-2">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-8 w-8 text-green-600 hover:bg-green-50 hover:text-green-700"
-                              onClick={() => updateStatus({ id: expense.id, status: ExpenseStatus.APPROVED })}
-                              disabled={isPending}
-                            >
-                              <Check className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Approve</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
-                              onClick={() => updateStatus({ id: expense.id, status: ExpenseStatus.REJECTED })}
-                              disabled={isPending}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Reject</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                  )}
+    <div className="w-full">
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id}>
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(header.column.columnDef.header, header.getContext())}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-24 text-center">
+                  <div className="flex items-center justify-center">
+                    <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+                    Loading...
+                  </div>
                 </TableCell>
               </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+            ) : table.getRowModel().rows?.length ? (
+              table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-24 text-center">
+                  No results.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+      <div className="flex items-center justify-end space-x-2 py-4">
+        <div className="space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePageChange(page - 1)}
+            disabled={page <= 1}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePageChange(page + 1)}
+            disabled={data.length < 10}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
     </div>
   );
-};
+}

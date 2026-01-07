@@ -1,11 +1,12 @@
+'use client';
 
+import { ExpenseStatus } from '@prisma/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 import { client } from '@/lib/hono';
-import { ExpenseStatus } from '@prisma/client';
 
-export const useUpdateExpense = () => {
+export const useUpdateExpenseStatus = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -22,11 +23,11 @@ export const useUpdateExpense = () => {
       return await response.json();
     },
     onSuccess: () => {
-      toast.success('Expense updated successfully');
+      toast.success('Expense status updated successfully');
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
     },
     onError: (error) => {
-      toast.error('Failed to update expense');
+      toast.error('Failed to update expense status');
       console.error(error);
     },
   });

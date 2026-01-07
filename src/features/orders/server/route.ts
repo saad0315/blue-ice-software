@@ -1,14 +1,12 @@
 import { zValidator } from '@hono/zod-validator';
-import { UserRole } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import { Hono } from 'hono';
-import { streamSSE } from 'hono/streaming';
 
 import {
   bulkAssignOrders,
   createOrder,
   deleteOrder,
   generateOrders,
-  generateOrdersStream,
   getOrder,
   getOrderForInvoice,
   getOrders,
@@ -108,35 +106,6 @@ const app = new Hono()
       console.error(error);
       return ctx.json({ error: 'Failed to generate orders' }, 500);
     }
-  })
-  .post('/generate-stream', sessionMiddleware, zValidator('json', generateOrdersSchema), async (ctx) => {
-    const user = ctx.get('user');
-
-    if (!([UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.INVENTORY_MGR] as UserRole[]).includes(user.role)) {
-      return ctx.json({ error: 'Unauthorized' }, 403);
-    }
-
-    const data = ctx.req.valid('json');
-
-    return streamSSE(ctx, async (stream) => {
-      let id = 0;
-      try {
-        for await (const progress of generateOrdersStream(data)) {
-          await stream.writeSSE({
-            data: JSON.stringify(progress),
-            event: progress.type,
-            id: String(id++),
-          });
-        }
-      } catch (error) {
-        console.error('Stream error:', error);
-        await stream.writeSSE({
-          data: JSON.stringify({ type: 'error', message: error instanceof Error ? error.message : 'Unknown error' }),
-          event: 'error',
-          id: String(id++),
-        });
-      }
-    });
   })
   .patch('/:id', sessionMiddleware, zValidator('json', updateOrderSchema), async (ctx) => {
     const user = ctx.get('user');

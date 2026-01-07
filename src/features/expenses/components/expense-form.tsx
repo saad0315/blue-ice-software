@@ -1,50 +1,43 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { ExpenseCategory, ExpensePaymentMethod } from '@prisma/client';
-import { Plus } from 'lucide-react';
-import { useState } from 'react';
+import { Loader2, Plus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
-import { z } from 'zod';
 
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { useCreateExpense } from '@/features/expenses/api/use-create-expense';
-
-import { createExpenseSchema } from '../schema';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Form } from '@/components/ui/form';
+import { useCreateExpense } from '../api/use-create-expense';
+import { CreateExpenseInput, createExpenseSchema } from '../schema';
+import { ExpenseFormFields } from './expense-form-fields';
+import { useState } from 'react';
 
 export const ExpenseForm = () => {
   const [open, setOpen] = useState(false);
   const { mutate: createExpense, isPending } = useCreateExpense();
 
-  const form = useForm<z.infer<typeof createExpenseSchema>>({
+  const form = useForm<CreateExpenseInput>({
     resolver: zodResolver(createExpenseSchema),
     defaultValues: {
-      amount: 0,
       date: new Date(),
-      category: ExpenseCategory.FUEL,
-      description: '',
-      paymentMethod: ExpensePaymentMethod.CASH_ON_HAND,
     },
   });
 
-  const onSubmit = (values: z.infer<typeof createExpenseSchema>) => {
-    createExpense(
-      {
-        ...values,
-        date: values.date.toISOString(),
+  const onSubmit = (data: CreateExpenseInput) => {
+    createExpense(data, {
+      onSuccess: () => {
+        setOpen(false);
+        form.reset();
       },
-      {
-        onSuccess: () => {
-          setOpen(false);
-          form.reset();
-        },
-      },
-    );
+    });
   };
 
   return (
@@ -57,109 +50,20 @@ export const ExpenseForm = () => {
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add New Expense</DialogTitle>
+          <DialogTitle>Add Expense</DialogTitle>
+          <DialogDescription>Enter the details of the expense.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="amount"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Amount</FormLabel>
-                  <FormControl>
-                    <Input type="number" step="0.01" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="date"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Date</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="date"
-                      value={field.value ? new Date(field.value).toISOString().split('T')[0] : ''}
-                      onChange={(e) => field.onChange(new Date(e.target.value))}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="category"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Category</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select category" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {Object.values(ExpenseCategory).map((cat) => (
-                        <SelectItem key={cat} value={cat}>
-                          {cat}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="paymentMethod"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Payment Method</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select payment method" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {Object.values(ExpensePaymentMethod).map((method) => (
-                        <SelectItem key={method} value={method}>
-                          {method}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description</FormLabel>
-                  <FormControl>
-                    <Textarea {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <Button type="submit" className="w-full" disabled={isPending}>
-              {isPending ? 'Saving...' : 'Save Expense'}
-            </Button>
+            <ExpenseFormFields />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpen(false)} disabled={isPending}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isPending}>
+                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create'}
+              </Button>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>
