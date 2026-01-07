@@ -2,7 +2,9 @@
 
 import { ColumnDef } from '@tanstack/react-table';
 import { ArrowUpDown, MoreHorizontal, Pencil, Trash, UserCircle } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+// import { useRouter } from 'next/navigation';
+// import { ArrowUpDown, MoreHorizontal, Pencil, Trash } from 'lucide-react';
+// import { useRouter } from 'next/navigation';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { useConfirm } from '@/hooks/use-confirm';
 
 import { useDeleteRoute } from '../api/use-delete-route';
+import { useRouteModal } from '../hooks/use-route-modal';
 
 export type Route = {
   id: string;
@@ -30,7 +33,8 @@ export type Route = {
 };
 
 const ActionCell = ({ route }: { route: Route }) => {
-  const router = useRouter();
+  // const router = useRouter();
+  const { open } = useRouteModal();
   const { mutate: deleteRoute, isPending } = useDeleteRoute();
   const [ConfirmDialog, confirm] = useConfirm(
     'Delete Route',
@@ -57,7 +61,8 @@ const ActionCell = ({ route }: { route: Route }) => {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>Actions</DropdownMenuLabel>
-          <DropdownMenuItem onClick={() => router.push(`/routes/${route.id}/edit`)}>
+          {/* <DropdownMenuItem onClick={() => router.push(`/routes/${route.id}/edit`)}> */}
+          <DropdownMenuItem onClick={() => open(route.id)}>
             <Pencil className="mr-2 h-4 w-4" />
             Edit
           </DropdownMenuItem>
