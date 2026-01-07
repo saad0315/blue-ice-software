@@ -62,9 +62,14 @@ export const EditCustomerForm = ({ customerId }: EditCustomerFormProps) => {
         routeId: customer.routeId,
         sequenceOrder: customer.sequenceOrder,
 
+        // Set default product and quantity from fetched customer data
+        defaultProductId: customer.defaultProductId,
+        defaultQuantity: customer.defaultQuantity,
+
         // These are not editable or relevant here usually, but required by type
         openingCashBalance: '0',
         openingBottleBalance: 0,
+        // `productId` is for opening bottle balance, not default product for ordering
         productId: null,
       } as unknown as CreateCustomerInput);
     }
