@@ -18,7 +18,7 @@ const DashboardLayout = ({ children }: PropsWithChildren) => {
           <div className="mx-auto h-full max-w-screen-xl">
             <Navbar />
 
-            <main className="flex h-full flex-col px-6 py-8">{children}</main>
+            <main className="flex h-full flex-col p-4 lg:px-6 lg:py-8">{children}</main>
           </div>
         </div>
       </div>

@@ -85,61 +85,63 @@ export function CustomerTable<TData, TValue>({ columns, data, isLoading, paginat
 
   return (
     <div className="w-full">
-      <div className="flex items-center gap-2 py-4">
+      <div className="flex flex-col lg:flex-row items-start lg:items-center gap-2 py-4">
         <Input
           placeholder="Search customers..."
           value={searchValue}
           onChange={(event) => setSearchValue(event.target.value)}
-          className="max-w-sm"
+          className="w-full lg:max-w-sm"
         />
-        <div className="min-w-[130px]">
-          <Select
-            value={filters.routeId || 'all'}
-            onValueChange={(val) => setFilters({ routeId: val === 'all' ? null : val, page: 1 })}
-            disabled={isLoadingRoutes}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Filter by Route" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Routes</SelectItem>
-              {routes.map((route: any) => (
-                <SelectItem key={route.id} value={route.id}>
-                  {route.name}
+        <div className="flex w-full lg:w-auto gap-2">
+          <div className="flex-1 min-w-[130px]">
+            <Select
+              value={filters.routeId || 'all'}
+              onValueChange={(val) => setFilters({ routeId: val === 'all' ? null : val, page: 1 })}
+              disabled={isLoadingRoutes}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Filter by Route" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Routes</SelectItem>
+                {routes.map((route: any) => (
+                  <SelectItem key={route.id} value={route.id}>
+                    {route.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex-1 min-w-[130px]">
+            <Select
+              value={filters.type || 'all'}
+              onValueChange={(val) => setFilters({ type: val === 'all' ? null : val, page: 1 })}
+              disabled={isLoadingRoutes}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Filter by Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                {/* {routes.map((route: any) => ( */}
+                <SelectItem key={"RESIDENTIAL"} value={"RESIDENTIAL"}>
+                  RESIDENTIAL
                 </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="min-w-[130px]">
-          <Select
-            value={filters.type || 'all'}
-            onValueChange={(val) => setFilters({ type: val === 'all' ? null : val, page: 1 })}
-            disabled={isLoadingRoutes}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Filter by Type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
-              {/* {routes.map((route: any) => ( */}
-              <SelectItem key={"RESIDENTIAL"} value={"RESIDENTIAL"}>
-                RESIDENTIAL
-              </SelectItem>
-              <SelectItem key={"COMMERCIAL"} value={"COMMERCIAL"}>
-                COMMERCIAL
-              </SelectItem>
-              <SelectItem key={"CORPORATE"} value={"CORPORATE"}>
-                CORPORATE
-              </SelectItem>
-              {/* ))} */}
-            </SelectContent>
-          </Select>
+                <SelectItem key={"COMMERCIAL"} value={"COMMERCIAL"}>
+                  COMMERCIAL
+                </SelectItem>
+                <SelectItem key={"CORPORATE"} value={"CORPORATE"}>
+                  CORPORATE
+                </SelectItem>
+                {/* ))} */}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="ml-auto">
+            <Button variant="outline" className="ml-auto w-full lg:w-auto mt-2 lg:mt-0">
               Columns <ChevronDown className="ml-2 h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -217,8 +219,8 @@ export function CustomerTable<TData, TValue>({ columns, data, isLoading, paginat
           </TableBody>
         </Table>
       </div>
-      <div className="glass-card sticky bottom-4 z-20 border-white/40 flex items-center justify-end space-x-2 px-2 py-1 mt-2  ">
-        <div className="flex-1 text-sm text-muted-foreground">
+      <div className="glass-card sticky bottom-4 z-20 border-white/40 flex flex-col sm:flex-row items-center justify-end gap-2 px-2 py-1 mt-2">
+        <div className="flex-1 text-sm text-muted-foreground w-full text-center sm:text-left">
           {pagination ? (
             <>
               Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} customers

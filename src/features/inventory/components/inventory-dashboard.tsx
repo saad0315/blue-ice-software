@@ -16,6 +16,17 @@ import { DamageFormModal } from './damage-form-modal';
 import { RefillFormModal } from './refill-form-modal';
 import { RestockFormModal } from './restock-form-modal';
 
+interface ProductStats {
+  id: string;
+  name: string;
+  sku: string;
+  stockFilled: number;
+  stockEmpty: number;
+  stockDamaged: number;
+  bottlesWithCustomers: number;
+  totalBottles: number;
+}
+
 export const InventoryDashboard = () => {
   const { data, isLoading, error } = useGetInventoryStats();
   const { open: openRestockModal } = useRestockModal();
@@ -123,7 +134,7 @@ export const InventoryDashboard = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {products.map((product) => (
+              {products.map((product: ProductStats) => (
                 <TableRow key={product.id}>
                   <TableCell className="font-medium">{product.name}</TableCell>
                   <TableCell className="text-muted-foreground">{product.sku}</TableCell>

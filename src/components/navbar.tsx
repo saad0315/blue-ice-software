@@ -36,9 +36,9 @@ export const Navbar = () => {
   const { title, description } = pathnameMap[pathnameKey] || defaultMap;
 
   return (
-    <nav className="flex items-center justify-between px-6 pt-4">
+    <nav className="flex items-center justify-between px-4 py-2 lg:px-6 lg:pt-4">
       <div className="hidden flex-col lg:flex">
-        <h1 className="text-2xl font-semibold">{title}</h1>
+        <h1 className="text-lg font-semibold lg:text-2xl">{title}</h1>
         <p className="text-muted-foreground">{description}</p>
       </div>
       <MobileSidebar />
