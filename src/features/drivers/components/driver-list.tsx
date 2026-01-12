@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useDebounce } from '@/hooks/use-debounce';
 
+import { DriverFormModal } from './driver-form-modal';
 import { useDriverFilters } from '../hooks/use-driver-filters';
 
 interface DataTableProps<TData, TValue> {
@@ -67,6 +68,7 @@ export function DriverTable<TData, TValue>({ columns, data, isLoading }: DataTab
 
   return (
     <div className="w-full">
+      <DriverFormModal />
       <div className="flex items-center gap-2 py-4">
         <Input
           placeholder="Search drivers..."
