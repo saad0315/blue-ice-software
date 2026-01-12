@@ -8,19 +8,17 @@ export const useGetCustomers = () => {
   const search = searchParams.get('search') || undefined;
   const routeId = searchParams.get('routeId') || undefined;
   const type = searchParams.get('type') || undefined;
-  const deliveryDay = searchParams.get('deliveryDay') || undefined;
   const page = searchParams.get('page') ? parseInt(searchParams.get('page')!) : 1;
   const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : 20;
 
   return useQuery({
-    queryKey: ['customers', { search, routeId, type, deliveryDay, page, limit }],
+    queryKey: ['customers', { search, routeId, type, page, limit }],
     queryFn: async () => {
       const response = await client.api.customers.$get({
         query: {
           search,
           routeId,
           type,
-          deliveryDay: deliveryDay?.toString(),
           page: page.toString(),
           limit: limit.toString(),
         },

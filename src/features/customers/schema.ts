@@ -145,7 +145,6 @@ export const getCustomersQuerySchema = z.object({
   area: z.string().optional(),
   type: z.nativeEnum(CustomerType).optional(),
   routeId: z.string().uuid().optional(),
-  deliveryDay: z.coerce.number().int().min(0).max(6).optional(),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
 });

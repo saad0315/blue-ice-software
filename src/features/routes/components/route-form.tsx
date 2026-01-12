@@ -126,6 +126,33 @@ export const RouteForm = ({ routeId, onCancel }: RouteFormProps) => {
               )}
             />
 
+            <FormField
+              control={form.control}
+              name="defaultDriverId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Default Driver (Optional)</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value || undefined} value={field.value || undefined}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a driver" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="unassigned">No Driver Assigned</SelectItem>
+                      {drivers.map((driver: any) => (
+                        <SelectItem key={driver.id} value={driver.id}>
+                          {driver.user.name} {driver.vehicleNo ? `(${driver.vehicleNo})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>This driver will be automatically assigned to orders on this route.</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <div className="flex justify-end space-x-2">
               <Button type="button" variant="ghost" onClick={handleCancel}>
                 Cancel
