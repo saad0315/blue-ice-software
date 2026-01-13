@@ -30,6 +30,7 @@ export type Order = {
   scheduledDate: string;
   status: OrderStatus;
   totalAmount: string;
+  cashCollected: string;
   cancellationReason?: string | null;
   driverNotes?: string | null;
   customer: {
@@ -248,6 +249,14 @@ export const columns: ColumnDef<Order>[] = [
     header: 'Total',
     cell: ({ row }) => {
       const amount = parseFloat(row.getValue('totalAmount'));
+      return <div>{new Intl.NumberFormat('en-PK', { style: 'currency', currency: 'PKR' }).format(amount)}</div>;
+    },
+  },
+  {
+    accessorKey: 'cashCollected',
+    header: 'Cash Collected',
+    cell: ({ row }) => {
+      const amount = parseFloat(row.getValue('cashCollected') || '0');
       return <div>{new Intl.NumberFormat('en-PK', { style: 'currency', currency: 'PKR' }).format(amount)}</div>;
     },
   },
