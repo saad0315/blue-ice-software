@@ -5,7 +5,6 @@ import { format } from 'date-fns';
 import { AlertCircle, Calendar, Camera, Loader2, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { toast } from 'sonner';
 import { z } from 'zod';
 
 import { Button } from '@/components/ui/button';
@@ -95,7 +94,7 @@ export function UnableToDeliverDialog({ orderId, customerName, scheduledDate, op
   const handleSubmit = async (values: UnableToDeliverFormValues) => {
     // Validate reschedule date if rescheduling
     if (values.action === 'RESCHEDULE' && !values.rescheduleDate) {
-      toast.error('Please select a reschedule date');
+      form.setError('rescheduleDate', { message: 'Please select a reschedule date' });
       return;
     }
 
@@ -112,10 +111,8 @@ export function UnableToDeliverDialog({ orderId, customerName, scheduledDate, op
       setProofPhoto(null);
       setPhotoPreview(null);
       onOpenChange(false);
-
-      toast.success(values.action === 'RESCHEDULE' ? 'Order rescheduled successfully' : 'Order cancelled successfully');
     } catch (error) {
-      toast.error('Failed to process request');
+      // Error handled by hook
     } finally {
       setIsSubmitting(false);
     }

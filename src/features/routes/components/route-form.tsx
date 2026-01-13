@@ -132,7 +132,11 @@ export const RouteForm = ({ routeId, onCancel }: RouteFormProps) => {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Default Driver (Optional)</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value || undefined} value={field.value || undefined}>
+                  <Select
+                    onValueChange={(value) => field.onChange(value === 'unassigned' ? null : value)}
+                    defaultValue={field.value || 'unassigned'}
+                    value={field.value || 'unassigned'}
+                  >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a driver" />

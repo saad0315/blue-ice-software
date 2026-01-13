@@ -98,28 +98,23 @@ export const EnhancedOrderCard = ({ order, index }: EnhancedOrderCardProps) => {
   };
 
   const handleUnableToDeliver = async (data: any) => {
-    try {
-      // TODO: If photo provided, upload to cloud storage first
-      let proofPhotoUrl: string | undefined;
+    // TODO: If photo provided, upload to cloud storage first
+    let proofPhotoUrl: string | undefined;
 
-      if (data.proofPhoto) {
-        // For now, skip photo upload - will implement in next iteration
-        toast.info('Photo proof feature coming soon');
-      }
-
-      await unableToDeliver({
-        reason: data.reason,
-        notes: data.notes,
-        action: data.action,
-        rescheduleDate: data.rescheduleDate,
-        proofPhotoUrl,
-      });
-
-      setUnableToDeliverOpen(false);
-    } catch (error) {
-      // Error already handled by mutation
-      console.error('Unable to deliver error:', error);
+    if (data.proofPhoto) {
+      // For now, skip photo upload - will implement in next iteration
+      toast.info('Photo proof feature coming soon');
     }
+
+    await unableToDeliver({
+      reason: data.reason,
+      notes: data.notes,
+      action: data.action,
+      rescheduleDate: data.rescheduleDate,
+      proofPhotoUrl,
+    });
+
+    setUnableToDeliverOpen(false);
   };
 
   return (

@@ -1072,7 +1072,7 @@ export async function bulkAssignOrders(data: { orderIds: string[]; driverId: str
 
 export async function markOrderUnableToDeliver(data: {
   orderId: string;
-  driverId: string;
+  driverId: string; // This corresponds to userId
   reason: string;
   notes: string;
   action: 'CANCEL' | 'RESCHEDULE';
@@ -1082,6 +1082,15 @@ export async function markOrderUnableToDeliver(data: {
   const { orderId, driverId, reason, notes, action, rescheduleDate, proofPhotoUrl } = data;
 
   return await db.$transaction(async (tx) => {
+    // Get Driver Profile from userId
+    const driverProfile = await tx.driverProfile.findUnique({
+      where: { userId: driverId },
+    });
+
+    if (!driverProfile) {
+      throw new Error('Driver profile not found');
+    }
+
     // Get the order
     const order = await tx.order.findUnique({
       where: { id: orderId },
@@ -1100,7 +1109,7 @@ export async function markOrderUnableToDeliver(data: {
     }
 
     // Verify the driver owns this order
-    if (order.driverId !== driverId) {
+    if (order.driverId !== driverProfile.id) {
       throw new Error('You are not assigned to this order');
     }
 
