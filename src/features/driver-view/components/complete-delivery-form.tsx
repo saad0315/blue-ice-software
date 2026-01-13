@@ -16,15 +16,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useGetOrder } from '@/features/orders/api/use-get-order';
 import { useUpdateOrder } from '@/features/orders/api/use-update-order';
+import { useInvoiceModal } from '@/features/orders/hooks/use-invoice-modal';
 
 interface CompleteDeliveryFormProps {
   orderId: string;
+  onSuccess?: () => void;
 }
 
-export const CompleteDeliveryForm = ({ orderId }: CompleteDeliveryFormProps) => {
+export const CompleteDeliveryForm = ({ orderId, onSuccess }: CompleteDeliveryFormProps) => {
   const router = useRouter();
   const { data: order, isLoading: isLoadingOrder } = useGetOrder(orderId);
   const { mutate: updateOrder, isPending } = useUpdateOrder();
+  const { open: openInvoice } = useInvoiceModal();
 
   const form = useForm({
     defaultValues: {
@@ -73,7 +76,13 @@ export const CompleteDeliveryForm = ({ orderId }: CompleteDeliveryFormProps) => 
         },
       },
       {
-        onSuccess: () => router.push('/deliveries'),
+        onSuccess: () => {
+          if (onSuccess) {
+            onSuccess();
+          } else {
+            router.push('/deliveries');
+          }
+        },
       },
     );
   };
@@ -97,7 +106,7 @@ export const CompleteDeliveryForm = ({ orderId }: CompleteDeliveryFormProps) => 
           </div>
 
           <div className="flex gap-2">
-            <Button variant="outline" size="lg" className="h-14 flex-1" onClick={() => router.push(`/orders/${orderId}/invoice`)}>
+            <Button variant="outline" size="lg" className="h-14 flex-1" onClick={() => openInvoice(orderId)}>
               <FileText className="mr-2 h-5 w-5" />
               Invoice
             </Button>

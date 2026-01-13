@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useUnableToDeliver } from '@/features/orders/api/use-unable-to-deliver';
 
+import { useCompleteDeliveryModal } from '../hooks/use-complete-delivery-modal';
 import { UnableToDeliverDialog } from './unable-to-deliver-dialog';
 
 interface EnhancedOrderCardProps {
@@ -57,6 +58,7 @@ interface EnhancedOrderCardProps {
 export const EnhancedOrderCard = ({ order, index }: EnhancedOrderCardProps) => {
   const [unableToDeliverOpen, setUnableToDeliverOpen] = useState(false);
   const { mutateAsync: unableToDeliver, isPending } = useUnableToDeliver(order.id);
+  const { open: openCompleteDelivery } = useCompleteDeliveryModal();
 
   const totalBottles = order.orderItems.reduce((sum, item) => sum + item.quantity, 0);
   const customerBalance = Number(order.customer.cashBalance);
@@ -98,28 +100,23 @@ export const EnhancedOrderCard = ({ order, index }: EnhancedOrderCardProps) => {
   };
 
   const handleUnableToDeliver = async (data: any) => {
-    try {
-      // TODO: If photo provided, upload to cloud storage first
-      let proofPhotoUrl: string | undefined;
+    // TODO: If photo provided, upload to cloud storage first
+    let proofPhotoUrl: string | undefined;
 
-      if (data.proofPhoto) {
-        // For now, skip photo upload - will implement in next iteration
-        toast.info('Photo proof feature coming soon');
-      }
-
-      await unableToDeliver({
-        reason: data.reason,
-        notes: data.notes,
-        action: data.action,
-        rescheduleDate: data.rescheduleDate,
-        proofPhotoUrl,
-      });
-
-      setUnableToDeliverOpen(false);
-    } catch (error) {
-      // Error already handled by mutation
-      console.error('Unable to deliver error:', error);
+    if (data.proofPhoto) {
+      // For now, skip photo upload - will implement in next iteration
+      toast.info('Photo proof feature coming soon');
     }
+
+    await unableToDeliver({
+      reason: data.reason,
+      notes: data.notes,
+      action: data.action,
+      rescheduleDate: data.rescheduleDate,
+      proofPhotoUrl,
+    });
+
+    setUnableToDeliverOpen(false);
   };
 
   return (
@@ -285,12 +282,15 @@ export const EnhancedOrderCard = ({ order, index }: EnhancedOrderCardProps) => {
         </Button>
 
         {/* Complete/View Button */}
-        <Link href={`/deliveries/${order.id}`} className="block col-span-1">
-          <Button size="lg" variant={order.status === 'COMPLETED' ? 'secondary' : 'primary'} className="h-14 w-full flex-col gap-1 px-0">
-            <Package className="h-5 w-5" />
-            <span className="text-[10px] font-medium">{order.status === 'COMPLETED' ? 'View' : 'Deliver'}</span>
-          </Button>
-        </Link>
+        <Button
+          size="lg"
+          variant={order.status === 'COMPLETED' ? 'secondary' : 'primary'}
+          className="h-16 w-full flex-col gap-1 px-0"
+          onClick={() => openCompleteDelivery(order.id)}
+        >
+          <Package className="h-5 w-5" />
+          <span className="text-[10px] font-medium">{order.status === 'COMPLETED' ? 'View' : 'Deliver'}</span>
+        </Button>
       </div>
 
       {/* Unable to Deliver Dialog */}

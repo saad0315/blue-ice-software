@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useDeleteCustomer } from '@/features/customers/api/use-delete-customer';
+import { DELIVERY_DAYS } from '@/features/customers/constants';
 import { useConfirm } from '@/hooks/use-confirm';
 
 // Define the shape of your data based on the API response
@@ -28,6 +29,7 @@ export type Customer = {
   type: string;
   creditLimit: string;
   cashBalance: string;
+  deliveryDays: number[];
   user: {
     name: string;
     email: string | null;
@@ -129,6 +131,21 @@ export const columns: ColumnDef<Customer>[] = [
     cell: ({ row }) => {
       const type = row.getValue('type') as string;
       return <Badge variant="secondary">{type}</Badge>;
+    },
+  },
+  {
+    accessorKey: 'deliveryDays',
+    header: 'Delivery Days',
+    cell: ({ row }) => {
+      const days = row.original.deliveryDays || [];
+      if (days.length === 0) return '-';
+
+      const dayLabels = days
+        .sort((a, b) => a - b)
+        .map((day) => DELIVERY_DAYS.find((d) => d.value === day)?.short || day)
+        .join(', ');
+
+      return <div className="max-w-[150px] truncate" title={dayLabels}>{dayLabels}</div>;
     },
   },
   {

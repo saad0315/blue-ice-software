@@ -9,6 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { useConfirm } from '@/hooks/use-confirm';
 
 import { useDeleteDriver } from '../api/use-delete-driver';
+import { useDriverModal } from '../hooks/use-driver-modal';
 
 export type Driver = {
   id: string;
@@ -28,6 +29,7 @@ export type Driver = {
 const ActionCell = ({ driver }: { driver: Driver }) => {
   const router = useRouter();
   const { mutate: deleteDriver, isPending } = useDeleteDriver();
+  const { open } = useDriverModal();
   const [ConfirmDialog, confirm] = useConfirm(
     'Delete Driver',
     'Are you sure you want to delete this driver? This action cannot be undone.',
@@ -57,7 +59,7 @@ const ActionCell = ({ driver }: { driver: Driver }) => {
             <Eye className="mr-2 h-4 w-4" />
             View Details
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => router.push(`/drivers/${driver.id}/edit`)}>
+          <DropdownMenuItem onClick={() => open(driver.id)}>
             <Pencil className="mr-2 h-4 w-4" />
             Edit
           </DropdownMenuItem>

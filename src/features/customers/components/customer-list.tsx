@@ -23,6 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useGetRoutes } from '@/features/routes/api/use-get-routes';
 import { useDebounce } from '@/hooks/use-debounce';
 
+import { DELIVERY_DAYS } from '../constants';
 import { useCustomerFilters } from '../hooks/use-customer-filters';
 
 interface DataTableProps<TData, TValue> {
@@ -134,6 +135,24 @@ export function CustomerTable<TData, TValue>({ columns, data, isLoading, paginat
                   CORPORATE
                 </SelectItem>
                 {/* ))} */}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex-1 min-w-[130px]">
+            <Select
+              value={filters.deliveryDay?.toString() || 'all'}
+              onValueChange={(val) => setFilters({ deliveryDay: val === 'all' ? null : parseInt(val), page: 1 })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Filter by Day" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Days</SelectItem>
+                {DELIVERY_DAYS.map((day) => (
+                  <SelectItem key={day.value} value={day.value.toString()}>
+                    {day.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

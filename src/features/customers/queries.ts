@@ -335,10 +335,11 @@ export async function getCustomers(params: {
   area?: string;
   type?: CustomerType;
   routeId?: string;
+  deliveryDay?: number;
   page: number;
   limit: number;
 }) {
-  const { search, area, type, routeId, page, limit } = params;
+  const { search, area, type, routeId, deliveryDay, page, limit } = params;
   const skip = (page - 1) * limit;
 
   const where: Prisma.CustomerProfileWhereInput = {
@@ -357,6 +358,7 @@ export async function getCustomers(params: {
       area ? { area: { equals: area, mode: 'insensitive' } } : {},
       type ? { type } : {},
       routeId ? { routeId } : {},
+      deliveryDay !== undefined ? { deliveryDays: { has: deliveryDay } } : {},
     ],
   };
 

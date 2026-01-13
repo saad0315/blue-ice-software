@@ -6,6 +6,7 @@ import { Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { useGetOrders } from '@/features/orders/api/use-get-orders';
 import { Order, columns } from '@/features/orders/components/columns';
+import { InvoiceModal } from '@/features/orders/components/invoice-modal';
 import { OrderTable } from '@/features/orders/components/order-list';
 import { useOrderModal } from '@/features/orders/hooks/use-order-modal';
 
@@ -28,6 +29,7 @@ function OrdersContent() {
         </Button>
       </div>
       <OrderTable columns={columns} data={orders} isLoading={isLoading} pagination={pagination} />
+      <InvoiceModal />
     </div>
   );
 }
