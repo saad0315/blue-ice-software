@@ -78,40 +78,48 @@ function CashHandoverContent() {
       </div>
 
       {/* Summary Statistics */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Deliveries</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <Card className="col-span-1 shadow-sm">
+          <CardHeader className="flex flex-row items-start justify-between space-y-0 p-3 sm:p-4 pb-1 sm:pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium leading-tight">Total Deliveries</CardTitle>
+            <Package className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0 ml-1" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{summary?.completedOrders || 0}</div>
-            <p className="text-xs text-muted-foreground">out of {summary?.totalOrders || 0} assigned</p>
+          <CardContent className="p-3 sm:p-4 pt-0 sm:pt-0">
+            <div className="text-xl sm:text-2xl font-bold">{summary?.completedOrders || 0}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground leading-tight mt-1">
+              out of {summary?.totalOrders || 0} assigned
+            </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Cash Orders Count</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+        <Card className="col-span-1 shadow-sm">
+          <CardHeader className="flex flex-row items-start justify-between space-y-0 p-3 sm:p-4 pb-1 sm:pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium leading-tight">Cash Orders</CardTitle>
+            <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground shrink-0 ml-1" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{Array.isArray(summary?.cashOrders) ? summary.cashOrders.length : 0}</div>
-            <p className="text-xs text-muted-foreground">orders paid in cash</p>
+          <CardContent className="p-3 sm:p-4 pt-0 sm:pt-0">
+            <div className="text-xl sm:text-2xl font-bold">{Array.isArray(summary?.cashOrders) ? summary.cashOrders.length : 0}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground leading-tight mt-1">
+              paid in cash
+            </p>
           </CardContent>
         </Card>
 
-        <Card className="border-green-200 bg-green-50/50 dark:border-green-900 dark:bg-green-950/20">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-green-900 dark:text-green-100">Expected Cash</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-600" />
+        <Card className="col-span-2 md:col-span-1 border-green-200 bg-green-50/50 dark:border-green-900 dark:bg-green-950/20 shadow-sm">
+          <CardHeader className="flex flex-row items-start justify-between space-y-0 p-3 sm:p-4 pb-1 sm:pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium text-green-900 dark:text-green-100 leading-tight">
+              Expected Cash
+            </CardTitle>
+            <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-green-600 shrink-0 ml-1" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600 dark:text-green-400">PKR {expectedCash.toFixed(2)}</div>
-            <div className="flex flex-col gap-1 mt-1">
-              <p className="text-xs text-muted-foreground">Gross: PKR {summary?.grossCash || '0.00'}</p>
+          <CardContent className="p-3 sm:p-4 pt-0 sm:pt-0">
+            <div className="text-xl sm:text-2xl font-bold text-green-600 dark:text-green-400">
+              PKR {expectedCash.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            </div>
+            <div className="flex flex-row flex-wrap gap-x-3 gap-y-1 mt-1">
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Gross: {summary?.grossCash || '0'}</p>
               {parseFloat(summary?.expensesAmount || '0') > 0 && (
-                <p className="text-xs text-red-500">- Exp: PKR {summary?.expensesAmount}</p>
+                <p className="text-[10px] sm:text-xs text-red-500 font-medium">- Exp: {summary?.expensesAmount}</p>
               )}
             </div>
           </CardContent>

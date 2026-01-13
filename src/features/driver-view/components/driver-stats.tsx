@@ -16,13 +16,13 @@ export const DriverStats = () => {
 
   return (
     <div className="grid grid-cols-2 gap-4">
-      <Card>
+      <Card className="dark:bg-background/60">
         <CardContent className="flex flex-col items-center justify-center p-4 text-center">
           <span className="text-2xl font-bold">{stats.pendingOrders}</span>
           <span className="text-xs text-muted-foreground">Pending</span>
         </CardContent>
       </Card>
-      <Card>
+      <Card className="dark:bg-background/60">
         <CardContent className="flex flex-col items-center justify-center p-4 text-center">
           <span className="text-2xl font-bold">{stats.completedOrders}</span>
           <span className="text-xs text-muted-foreground">Completed</span>

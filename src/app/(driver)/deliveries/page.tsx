@@ -78,12 +78,12 @@ function DeliveriesContent() {
           <LoadSheet orders={pendingOrders} />
         </div>
 
-        <div className="bg-muted rounded-lg p-1">
+        <div className="bg-muted dark:bg-muted/50 rounded-lg p-1">
           <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as 'list' | 'map')}>
-            <ToggleGroupItem value="list" aria-label="List View" size="sm">
+            <ToggleGroupItem value="list" aria-label="List View" size="sm" className="data-[state=on]:bg-background dark:data-[state=on]:bg-background/80">
               <List className="h-4 w-4" />
             </ToggleGroupItem>
-            <ToggleGroupItem value="map" aria-label="Map View" size="sm">
+            <ToggleGroupItem value="map" aria-label="Map View" size="sm" className="data-[state=on]:bg-background dark:data-[state=on]:bg-background/80">
               <Map className="h-4 w-4" />
             </ToggleGroupItem>
           </ToggleGroup>
