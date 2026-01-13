@@ -11,7 +11,13 @@ export async function getDriverStats(driverId: string, date: Date) {
   const [totalOrders, completedOrders, pendingOrders, revenueData, expenseData] = await Promise.all([
     db.order.count({ where: { driverId, scheduledDate: { gte: startOfDay, lte: endOfDay } } }),
     db.order.count({ where: { driverId, scheduledDate: { gte: startOfDay, lte: endOfDay }, status: OrderStatus.COMPLETED } }),
-    db.order.count({ where: { driverId, scheduledDate: { gte: startOfDay, lte: endOfDay }, status: { not: OrderStatus.COMPLETED } } }),
+    db.order.count({
+      where: {
+        driverId,
+        scheduledDate: { gte: startOfDay, lte: endOfDay },
+        status: { in: [OrderStatus.PENDING, OrderStatus.SCHEDULED, OrderStatus.IN_PROGRESS] },
+      },
+    }),
     db.order.aggregate({
       where: { driverId, scheduledDate: { gte: startOfDay, lte: endOfDay }, status: OrderStatus.COMPLETED },
       _sum: { cashCollected: true },
