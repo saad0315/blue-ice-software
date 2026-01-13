@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { UserButton } from '@/features/auth/components/user-button';
 import { CompleteDeliveryModal } from '@/features/driver-view/components/complete-delivery-modal';
 import { NotificationSheet } from '@/features/notifications/components/notification-sheet';
+import { InvoiceModal } from '@/features/orders/components/invoice-modal';
 
 interface DriverLayoutProps {
   children: React.ReactNode;
@@ -42,6 +43,7 @@ export default function DriverLayout({ children }: DriverLayoutProps) {
       <main className="container mx-auto max-w-md px-4 py-6 pb-20">
         {children}
         <CompleteDeliveryModal />
+        <InvoiceModal />
       </main>
     </div>
   );

@@ -21,6 +21,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useConfirm } from '@/hooks/use-confirm';
 
 import { useDeleteOrder } from '../api/use-delete-order';
+import { useInvoiceModal } from '../hooks/use-invoice-modal';
 import { useOrderModal } from '../hooks/use-order-modal';
 
 export type Order = {
@@ -46,6 +47,7 @@ export type Order = {
 const ActionCell = ({ order }: { order: Order }) => {
   const router = useRouter();
   const { open } = useOrderModal();
+  const { open: openInvoice } = useInvoiceModal();
   const { mutate: deleteOrder, isPending } = useDeleteOrder();
   const [ConfirmDialog, confirm] = useConfirm('Delete Order', `Are you sure you want to delete order #${order.readableId}?`, 'destructive');
 
@@ -76,7 +78,7 @@ const ActionCell = ({ order }: { order: Order }) => {
             <Pencil className="mr-2 h-4 w-4" />
             Edit Order
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => router.push(`/orders/${order.id}/invoice`)}>
+          <DropdownMenuItem onClick={() => openInvoice(order.id)}>
             <FileText className="mr-2 h-4 w-4" />
             Print Invoice
           </DropdownMenuItem>
