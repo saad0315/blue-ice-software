@@ -33,7 +33,21 @@ export async function getOrders(params: {
       customerId ? { customerId } : {},
       driverId ? (driverId === 'unassigned' ? { driverId: null } : { driverId }) : {},
       routeId ? { customer: { routeId } } : {},
-      date ? { scheduledDate: { equals: new Date(date) } } : {},
+      // Modified Date Logic for Drivers:
+      // If a specific date is requested (e.g., Today), we also want to include ALL past incomplete orders.
+      // This prevents orders from disappearing at midnight.
+      date
+        ? {
+          OR: [
+            { scheduledDate: { equals: new Date(date) } },
+            // Include past orders that are still active (Pending/In Progress)
+            {
+              scheduledDate: { lt: new Date(date) },
+              status: { in: [OrderStatus.PENDING, OrderStatus.IN_PROGRESS, OrderStatus.SCHEDULED] },
+            },
+          ],
+        }
+        : {},
       from && to ? { scheduledDate: { gte: new Date(from), lte: new Date(to) } } : {},
     ],
   };
@@ -816,13 +830,18 @@ export async function updateOrder(
         if (!product) throw new Error(`Product ${item.productId} not found`);
 
         const price = item.price !== undefined ? new Prisma.Decimal(item.price) : product.basePrice;
-        const amount = price.mul(item.quantity);
+
+        // CRITICAL FIX: If filledGiven is provided (Delivery Mode), use it as the billing quantity.
+        // This ensures on-demand quantity changes (e.g. ordered 1, delivered 3) are correctly billed.
+        const actualQuantity = item.filledGiven !== undefined && item.filledGiven >= 0 ? item.filledGiven : item.quantity;
+
+        const amount = price.mul(actualQuantity);
         totalAmount = totalAmount.add(amount);
 
         return {
           orderId: id,
           productId: item.productId,
-          quantity: item.quantity,
+          quantity: actualQuantity, // Update the stored quantity to match what was delivered
           priceAtTime: price,
           filledGiven: item.filledGiven || 0,
           emptyTaken: item.emptyTaken || 0,
@@ -1099,6 +1118,7 @@ export async function markOrderUnableToDeliver(data: {
         customer: {
           include: {
             user: { select: { name: true } },
+            route: { select: { defaultDriverId: true } },
           },
         },
       },
@@ -1152,6 +1172,31 @@ export async function markOrderUnableToDeliver(data: {
         },
       },
     });
+
+    // Handle Rescheduling: Create a new order for the future date
+    if (action === 'RESCHEDULE' && rescheduleDate) {
+
+      console.log("reschuldeding date", rescheduleDate)
+
+      await tx.order.create({
+        data: {
+          customerId: order.customerId,
+          driverId: order.customer.route?.defaultDriverId || null, // Assign to default driver if available
+          scheduledDate: rescheduleDate,
+          status: OrderStatus.SCHEDULED,
+          deliveryCharge: order.deliveryCharge,
+          discount: order.discount,
+          totalAmount: order.totalAmount, // Assuming price remains same
+          orderItems: {
+            create: order.orderItems.map((item) => ({
+              productId: item.productId,
+              quantity: item.quantity,
+              priceAtTime: item.priceAtTime,
+            })),
+          },
+        },
+      });
+    }
 
     // TODO: Send notification to admin/customer
     // await sendNotification({

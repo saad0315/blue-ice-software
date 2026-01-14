@@ -15,7 +15,7 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  AlertCircle
+  AlertCircle,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -193,10 +193,22 @@ function OrderDetailContent() {
 
               {order.cancelledAt && (
                 <div className="space-y-1">
-                  <p className="text-sm font-medium text-muted-foreground">Cancelled At</p>
-                  <div className="flex items-center gap-2 text-red-600">
-                    <XCircle className="h-4 w-4" />
+                  <p className="text-sm font-medium text-muted-foreground">
+                    {order.status === 'RESCHEDULED' ? 'Rescheduled At' : 'Cancelled At'}
+                  </p>
+                  <div className={`flex items-center gap-2 ${order.status === 'RESCHEDULED' ? 'text-amber-600' : 'text-red-600'}`}>
+                    {order.status === 'RESCHEDULED' ? <Clock className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
                     <span>{format(new Date(order.cancelledAt), 'MMM dd, yyyy at h:mm a')}</span>
+                  </div>
+                </div>
+              )}
+
+              {order.rescheduledToDate && (
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">New Date</p>
+                  <div className="flex items-center gap-2 text-blue-600">
+                    <Calendar className="h-4 w-4" />
+                    <span className="font-bold">{format(new Date(order.rescheduledToDate), 'MMM dd, yyyy')}</span>
                   </div>
                 </div>
               )}
@@ -216,28 +228,37 @@ function OrderDetailContent() {
             </CardContent>
           </Card>
 
-          {/* Cancellation Info */}
+          {/* Cancellation / Reschedule Info */}
           {(order.status === 'CANCELLED' || order.status === 'RESCHEDULED') && (
-             <Card className="border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-900/10">
-               <CardHeader>
-                 <CardTitle className="flex items-center gap-2 text-red-700 dark:text-red-400">
-                   <AlertCircle className="h-5 w-5" />
-                   Cancellation Details
-                 </CardTitle>
-               </CardHeader>
-               <CardContent className="space-y-2">
-                 <div className="grid grid-cols-[100px_1fr] gap-2 text-sm">
-                   <span className="font-medium text-muted-foreground">Reason:</span>
-                   <span>{order.cancellationReason?.replace(/_/g, ' ') || 'N/A'}</span>
+            <Card
+              className={
+                order.status === 'RESCHEDULED'
+                  ? 'border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-900/10'
+                  : 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-900/10'
+              }
+            >
+              <CardHeader>
+                <CardTitle
+                  className={`flex items-center gap-2 ${order.status === 'RESCHEDULED' ? 'text-amber-700 dark:text-amber-400' : 'text-red-700 dark:text-red-400'
+                    }`}
+                >
+                  <AlertCircle className="h-5 w-5" />
+                  {order.status === 'RESCHEDULED' ? 'Reschedule Details' : 'Cancellation Details'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="grid grid-cols-[100px_1fr] gap-2 text-sm">
+                  <span className="font-medium text-muted-foreground">Reason:</span>
+                  <span>{order.cancellationReason?.replace(/_/g, ' ') || 'N/A'}</span>
 
-                   <span className="font-medium text-muted-foreground">Notes:</span>
-                   <span>{order.driverNotes || 'No notes provided'}</span>
+                  <span className="font-medium text-muted-foreground">Notes:</span>
+                  <span>{order.driverNotes || 'No notes provided'}</span>
 
-                   <span className="font-medium text-muted-foreground">By:</span>
-                   <span>{order.cancelledBy ? 'Driver/Admin' : 'System'}</span>
-                 </div>
-               </CardContent>
-             </Card>
+                  <span className="font-medium text-muted-foreground">By:</span>
+                  <span>{order.cancelledBy ? 'Driver/Admin' : 'System'}</span>
+                </div>
+              </CardContent>
+            </Card>
           )}
         </div>
 
