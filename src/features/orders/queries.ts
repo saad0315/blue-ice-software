@@ -38,15 +38,15 @@ export async function getOrders(params: {
       // This prevents orders from disappearing at midnight.
       date
         ? {
-            OR: [
-              { scheduledDate: { equals: new Date(date) } },
-              // Include past orders that are still active (Pending/In Progress)
-              {
-                scheduledDate: { lt: new Date(date) },
-                status: { in: [OrderStatus.PENDING, OrderStatus.IN_PROGRESS, OrderStatus.SCHEDULED] },
-              },
-            ],
-          }
+          OR: [
+            { scheduledDate: { equals: new Date(date) } },
+            // Include past orders that are still active (Pending/In Progress)
+            {
+              scheduledDate: { lt: new Date(date) },
+              status: { in: [OrderStatus.PENDING, OrderStatus.IN_PROGRESS, OrderStatus.SCHEDULED] },
+            },
+          ],
+        }
         : {},
       from && to ? { scheduledDate: { gte: new Date(from), lte: new Date(to) } } : {},
     ],
