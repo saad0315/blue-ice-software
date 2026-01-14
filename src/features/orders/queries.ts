@@ -33,7 +33,21 @@ export async function getOrders(params: {
       customerId ? { customerId } : {},
       driverId ? (driverId === 'unassigned' ? { driverId: null } : { driverId }) : {},
       routeId ? { customer: { routeId } } : {},
-      date ? { scheduledDate: { equals: new Date(date) } } : {},
+      // Modified Date Logic for Drivers:
+      // If a specific date is requested (e.g., Today), we also want to include ALL past incomplete orders.
+      // This prevents orders from disappearing at midnight.
+      date
+        ? {
+            OR: [
+              { scheduledDate: { equals: new Date(date) } },
+              // Include past orders that are still active (Pending/In Progress)
+              {
+                scheduledDate: { lt: new Date(date) },
+                status: { in: [OrderStatus.PENDING, OrderStatus.IN_PROGRESS, OrderStatus.SCHEDULED] },
+              },
+            ],
+          }
+        : {},
       from && to ? { scheduledDate: { gte: new Date(from), lte: new Date(to) } } : {},
     ],
   };
@@ -819,7 +833,7 @@ export async function updateOrder(
 
         // CRITICAL FIX: If filledGiven is provided (Delivery Mode), use it as the billing quantity.
         // This ensures on-demand quantity changes (e.g. ordered 1, delivered 3) are correctly billed.
-        const actualQuantity = item.filledGiven !== undefined && item.filledGiven > 0 ? item.filledGiven : item.quantity;
+        const actualQuantity = item.filledGiven !== undefined && item.filledGiven >= 0 ? item.filledGiven : item.quantity;
 
         const amount = price.mul(actualQuantity);
         totalAmount = totalAmount.add(amount);
