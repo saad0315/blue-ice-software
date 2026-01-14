@@ -816,13 +816,18 @@ export async function updateOrder(
         if (!product) throw new Error(`Product ${item.productId} not found`);
 
         const price = item.price !== undefined ? new Prisma.Decimal(item.price) : product.basePrice;
-        const amount = price.mul(item.quantity);
+
+        // CRITICAL FIX: If filledGiven is provided (Delivery Mode), use it as the billing quantity.
+        // This ensures on-demand quantity changes (e.g. ordered 1, delivered 3) are correctly billed.
+        const actualQuantity = item.filledGiven !== undefined && item.filledGiven > 0 ? item.filledGiven : item.quantity;
+
+        const amount = price.mul(actualQuantity);
         totalAmount = totalAmount.add(amount);
 
         return {
           orderId: id,
           productId: item.productId,
-          quantity: item.quantity,
+          quantity: actualQuantity, // Update the stored quantity to match what was delivered
           priceAtTime: price,
           filledGiven: item.filledGiven || 0,
           emptyTaken: item.emptyTaken || 0,
