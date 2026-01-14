@@ -1161,6 +1161,9 @@ export async function markOrderUnableToDeliver(data: {
 
     // Handle Rescheduling: Create a new order for the future date
     if (action === 'RESCHEDULE' && rescheduleDate) {
+
+      console.log("reschuldeding date", rescheduleDate)
+
       await tx.order.create({
         data: {
           customerId: order.customerId,

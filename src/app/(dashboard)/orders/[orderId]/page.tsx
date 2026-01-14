@@ -16,8 +16,6 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  Clock,
-  Calendar
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -241,9 +239,8 @@ function OrderDetailContent() {
             >
               <CardHeader>
                 <CardTitle
-                  className={`flex items-center gap-2 ${
-                    order.status === 'RESCHEDULED' ? 'text-amber-700 dark:text-amber-400' : 'text-red-700 dark:text-red-400'
-                  }`}
+                  className={`flex items-center gap-2 ${order.status === 'RESCHEDULED' ? 'text-amber-700 dark:text-amber-400' : 'text-red-700 dark:text-red-400'
+                    }`}
                 >
                   <AlertCircle className="h-5 w-5" />
                   {order.status === 'RESCHEDULED' ? 'Reschedule Details' : 'Cancellation Details'}
