@@ -1153,6 +1153,28 @@ export async function markOrderUnableToDeliver(data: {
       },
     });
 
+    // Handle Rescheduling: Create a new order for the future date
+    if (action === 'RESCHEDULE' && rescheduleDate) {
+      await tx.order.create({
+        data: {
+          customerId: order.customerId,
+          driverId: null, // Reset driver assignment for future order (Admin will re-assign)
+          scheduledDate: rescheduleDate,
+          status: OrderStatus.SCHEDULED,
+          deliveryCharge: order.deliveryCharge,
+          discount: order.discount,
+          totalAmount: order.totalAmount, // Assuming price remains same
+          orderItems: {
+            create: order.orderItems.map((item) => ({
+              productId: item.productId,
+              quantity: item.quantity,
+              priceAtTime: item.priceAtTime,
+            })),
+          },
+        },
+      });
+    }
+
     // TODO: Send notification to admin/customer
     // await sendNotification({
     //   to: 'admin',
