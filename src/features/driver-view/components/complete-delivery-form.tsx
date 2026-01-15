@@ -14,8 +14,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useCompleteDelivery } from '@/features/driver-view/api/use-complete-delivery';
 import { useGetOrder } from '@/features/orders/api/use-get-order';
-import { useUpdateOrder } from '@/features/orders/api/use-update-order';
 import { useInvoiceModal } from '@/features/orders/hooks/use-invoice-modal';
 
 interface CompleteDeliveryFormProps {
@@ -26,7 +26,7 @@ interface CompleteDeliveryFormProps {
 export const CompleteDeliveryForm = ({ orderId, onSuccess }: CompleteDeliveryFormProps) => {
   const router = useRouter();
   const { data: order, isLoading: isLoadingOrder } = useGetOrder(orderId);
-  const { mutate: updateOrder, isPending } = useUpdateOrder();
+  const { mutate: completeDelivery, isPending } = useCompleteDelivery();
   const { open: openInvoice } = useInvoiceModal();
 
   const form = useForm({
@@ -59,7 +59,7 @@ export const CompleteDeliveryForm = ({ orderId, onSuccess }: CompleteDeliveryFor
   }, [order, form]);
 
   const onSubmit = (data: any) => {
-    updateOrder(
+    completeDelivery(
       {
         param: { id: orderId },
         json: {

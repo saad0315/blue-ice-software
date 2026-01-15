@@ -8,7 +8,7 @@ export async function getDriverStats(driverId: string, date: Date) {
   const endOfDay = new Date(date);
   endOfDay.setHours(23, 59, 59, 999);
 
-  const [totalOrders, completedOrders, pendingOrders, revenueData, expenseData] = await Promise.all([
+  const [totalOrders, completedOrders, pendingOrders, cancelledOrders, rescheduledOrders, revenueData, expenseData] = await Promise.all([
     db.order.count({ where: { driverId, scheduledDate: { gte: startOfDay, lte: endOfDay } } }),
     db.order.count({ where: { driverId, scheduledDate: { gte: startOfDay, lte: endOfDay }, status: OrderStatus.COMPLETED } }),
     db.order.count({
@@ -18,6 +18,8 @@ export async function getDriverStats(driverId: string, date: Date) {
         status: { in: [OrderStatus.PENDING, OrderStatus.SCHEDULED, OrderStatus.IN_PROGRESS] },
       },
     }),
+    db.order.count({ where: { driverId, scheduledDate: { gte: startOfDay, lte: endOfDay }, status: OrderStatus.CANCELLED } }),
+    db.order.count({ where: { driverId, scheduledDate: { gte: startOfDay, lte: endOfDay }, status: OrderStatus.RESCHEDULED } }),
     db.order.aggregate({
       where: { driverId, scheduledDate: { gte: startOfDay, lte: endOfDay }, status: OrderStatus.COMPLETED },
       _sum: { cashCollected: true },
@@ -40,6 +42,8 @@ export async function getDriverStats(driverId: string, date: Date) {
     totalOrders,
     completedOrders,
     pendingOrders,
+    cancelledOrders,
+    rescheduledOrders,
     cashCollected: (grossCash - expenses).toFixed(2),
   };
 }

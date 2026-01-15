@@ -10,6 +10,7 @@ import { Map, List } from 'lucide-react';
 
 import { DriverStats } from '@/features/driver-view/components/driver-stats';
 import { EnhancedOrderCard } from '@/features/driver-view/components/enhanced-order-card';
+import { IssueOrderCard } from '@/features/driver-view/components/issue-order-card';
 import { LoadSheet } from '@/features/driver-view/components/load-sheet';
 import { DeliveryMap } from '@/features/driver-view/components/delivery-map';
 import { ExpenseForm } from '@/features/expenses/components/expense-form';
@@ -124,7 +125,7 @@ function DeliveriesContent() {
           {issueOrders.length === 0 ? (
             <p className="py-8 text-center text-muted-foreground">No issues today</p>
           ) : (
-            issueOrders.map((order: any) => <EnhancedOrderCard key={order.id} order={order} />)
+            issueOrders.map((order: any) => <IssueOrderCard key={order.id} order={order} />)
           )}
         </TabsContent>
       </Tabs>
