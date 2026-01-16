@@ -13,6 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useDeleteCustomer } from '@/features/customers/api/use-delete-customer';
 import { useGetCustomer } from '@/features/customers/api/use-get-customer';
+import { useInvoiceModal } from '@/features/orders/hooks/use-invoice-modal';
 import { useConfirm } from '@/hooks/use-confirm';
 
 interface CustomerDetailViewProps {
@@ -29,6 +30,7 @@ export const CustomerDetailView = ({ customerId }: CustomerDetailViewProps) => {
   const router = useRouter();
   const { data: customer, isLoading } = useGetCustomer(customerId);
   const { mutate: deleteCustomer, isPending: isDeleting } = useDeleteCustomer();
+  const { open: openInvoice } = useInvoiceModal();
 
   const [ConfirmDialog, confirm] = useConfirm(
     'Delete Customer',
@@ -318,7 +320,7 @@ export const CustomerDetailView = ({ customerId }: CustomerDetailViewProps) => {
                     <TableRow
                       key={order.id}
                       className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => router.push(`/orders/${order.id}/invoice`)}
+                      onClick={() => openInvoice(order.id)}
                     >
                       <TableCell className="font-medium">#{order.readableId}</TableCell>
                       <TableCell className="text-xs">{format(new Date(order.scheduledDate), 'dd/MM/yy')}</TableCell>

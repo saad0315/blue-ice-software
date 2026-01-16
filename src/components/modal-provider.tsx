@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
+import { InvoiceModal } from '@/features/orders/components/invoice-modal';
 import { OrderFormModal } from '@/features/orders/components/order-form-modal';
 
 export const ModalProvider = () => {
@@ -16,6 +17,7 @@ export const ModalProvider = () => {
   return (
     <>
       <OrderFormModal />
+      <InvoiceModal />
       {/* <CreateProductModal /> */}
     </>
   );
