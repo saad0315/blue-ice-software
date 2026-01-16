@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
-import { client } from '@/lib/rpc';
+import { client } from '@/lib/hono';
 
 interface UseUpdateSpecialPriceProps {
   customerId: string;
