@@ -206,7 +206,7 @@ export const EnhancedOrderCard = ({ order, index }: EnhancedOrderCardProps) => {
         )}
 
         {/* Customer Balance Warning */}
-        {hasDebt && (
+        {hasDebt && ['SCHEDULED', 'PENDING', 'IN_PROGRESS'].includes(order.status) && (
           <div className="rounded-md border-2 border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-950/20 p-3">
             <div className="flex items-start gap-2">
               <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600 dark:text-red-400" />
