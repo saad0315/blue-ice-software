@@ -14,15 +14,25 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { useDriverDaySummary } from '@/features/cash-management/api/use-driver-day-summary';
 import { useSubmitCashHandover } from '@/features/cash-management/api/use-submit-cash-handover';
+import { useGetExpenses } from '@/features/expenses/api/use-expenses';
+import { ExpenseStatus } from '@prisma/client';
+import { Checkbox } from '@/components/ui/checkbox';
 
 function CashHandoverContent() {
   const { data: summary, isLoading, error } = useDriverDaySummary();
+  const { data: expensesData } = useGetExpenses({ status: ExpenseStatus.PENDING });
   const { mutate: submitHandover, isPending } = useSubmitCashHandover();
 
   const [actualCash, setActualCash] = useState('');
   const [driverNotes, setDriverNotes] = useState('');
   const [shiftStart, setShiftStart] = useState('');
   const [shiftEnd, setShiftEnd] = useState('');
+  const [selectedExpenseIds, setSelectedExpenseIds] = useState<string[]>([]);
+
+  // Toggle expense selection
+  const toggleExpense = (id: string) => {
+    setSelectedExpenseIds((prev) => (prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,6 +47,7 @@ function CashHandoverContent() {
       driverNotes: driverNotes || undefined,
       shiftStart: shiftStart || undefined,
       shiftEnd: shiftEnd || undefined,
+      expenseIds: selectedExpenseIds,
     });
   };
 
@@ -168,6 +179,43 @@ function CashHandoverContent() {
                     <p className="text-sm text-muted-foreground">{order.customerName}</p>
                   </div>
                   <Badge variant="secondary">PKR {order.amount}</Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Expenses Selection */}
+      {expensesData?.expenses && expensesData.expenses.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Include Pending Expenses</CardTitle>
+            <CardDescription>Select pending expenses to include in this handover calculation</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {expensesData.expenses.map((expense: any) => (
+                <div key={expense.id} className="flex items-center space-x-3 rounded-lg border p-3">
+                  <Checkbox
+                    id={expense.id}
+                    checked={selectedExpenseIds.includes(expense.id)}
+                    onCheckedChange={() => toggleExpense(expense.id)}
+                  />
+                  <div className="flex-1">
+                    <label
+                      htmlFor={expense.id}
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      {expense.category} - {expense.description || 'No description'}
+                    </label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {format(new Date(expense.date), 'dd MMM')}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-red-600 border-red-200 bg-red-50">
+                    - PKR {expense.amount}
+                  </Badge>
                 </div>
               ))}
             </div>

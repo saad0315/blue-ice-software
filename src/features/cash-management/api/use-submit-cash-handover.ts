@@ -7,7 +7,14 @@ export const useSubmitCashHandover = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: { date: string; actualCash: number; driverNotes?: string; shiftStart?: string; shiftEnd?: string }) => {
+    mutationFn: async (data: {
+      date: string;
+      actualCash: number;
+      driverNotes?: string;
+      shiftStart?: string;
+      shiftEnd?: string;
+      expenseIds?: string[];
+    }) => {
       const response = await client.api['cash-management'].driver.submit.$post({
         json: data,
       });
