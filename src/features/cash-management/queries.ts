@@ -853,7 +853,7 @@ export async function getCashDashboardStats(options?: { startDate?: Date; endDat
       where: {
         // This is tricky. Orders are on scheduledDate, but handover is on `date`.
         // We should probably show cash collected within the date range, regardless of handover date.
-        completedAt: { gte: startOfRange, lte: endOfRange },
+        deliveredAt: { gte: startOfRange, lte: endOfRange },
         status: OrderStatus.COMPLETED,
         paymentMethod: PaymentMethod.CASH,
       },
