@@ -79,6 +79,13 @@ const routes = [
     activeIcon: MapPin,
     roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN],
   },
+  {
+    label: 'Team',
+    href: 'team',
+    icon: Users,
+    activeIcon: Users,
+    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN],
+  },
 ];
 
 export const Navigation = () => {
