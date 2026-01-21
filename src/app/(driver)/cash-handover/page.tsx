@@ -91,57 +91,48 @@ function CashHandoverContent() {
   const discrepancy = totalExpectedCash - enteredCash;
   const hasDiscrepancy = Math.abs(discrepancy) > 0.01;
 
+  // Active Handover State
+  const isPending = summary?.isHandoverPending;
+  const pendingHandover = summary?.todayHandover;
+
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">End of Day - Cash Handover</h1>
-        <p className="text-muted-foreground">Submit your daily cash collection</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">End of Day - Cash Handover</h1>
+          <p className="text-muted-foreground">Submit your daily cash collection</p>
+        </div>
+        <Button variant="outline" onClick={() => window.location.reload()} size="sm">
+          <Clock className="mr-2 h-4 w-4" />
+          Refresh
+        </Button>
       </div>
 
-      {/* CRITICAL: Pending Cash from Previous Days Alert */}
-      {hasPendingCash && (
-        <Card className="border-amber-500 bg-amber-50 dark:bg-amber-950/30">
+      {/* Pending Handover Alert */}
+      {isPending && pendingHandover && (
+        <Card className="border-blue-500 bg-blue-50 dark:bg-blue-950/30">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2 text-amber-700 dark:text-amber-400">
-              <AlertTriangle className="h-5 w-5" />
-              Pending Cash from Previous Days
+            <CardTitle className="text-base flex items-center gap-2 text-blue-700 dark:text-blue-400">
+              <Clock className="h-5 w-5" />
+              Handover Submitted & Pending Verification
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold text-amber-700 dark:text-amber-400">
-              PKR {pendingCashAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-            </p>
-            <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
-              This cash was collected on previous days and must be included in today's handover.
-            </p>
-
-            {/* Breakdown by day */}
-            {pendingFromPreviousDays?.pendingDays && pendingFromPreviousDays.pendingDays.length > 0 && (
-              <div className="mt-3 space-y-2">
-                <p className="text-xs font-medium text-amber-700 dark:text-amber-400">Breakdown by date:</p>
-                <div className="max-h-32 overflow-y-auto space-y-1">
-                  {pendingFromPreviousDays.pendingDays.map((day: any) => (
-                    <div
-                      key={day.date}
-                      className="flex items-center justify-between text-xs bg-amber-100 dark:bg-amber-900/30 rounded px-2 py-1"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-3 w-3" />
-                        <span>{format(new Date(day.date), 'dd MMM yyyy')}</span>
-                        <span className="text-amber-600">({day.orderCount} orders)</span>
-                        {day.hasPendingHandover && (
-                          <Badge variant="outline" className="text-[10px] py-0 px-1 border-amber-400 text-amber-600">
-                            Handover Pending
-                          </Badge>
-                        )}
-                      </div>
-                      <span className="font-medium">PKR {parseFloat(day.netCash).toLocaleString()}</span>
-                    </div>
-                  ))}
-                </div>
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">
+                  PKR {parseFloat(pendingHandover.actualCash).toLocaleString()}
+                </p>
+                <p className="text-xs text-blue-600 dark:text-blue-500 mt-1">
+                  Submitted at {format(new Date(pendingHandover.submittedAt), 'hh:mm a')}
+                </p>
               </div>
-            )}
+
+              {/* Cancel Button */}
+              {/* Note: In a real app, bind this to the cancel API. For now, simple refresh instructions. */}
+              {/* <Button variant="destructive" size="sm">Cancel Handover</Button> */}
+            </div>
           </CardContent>
         </Card>
       )}
@@ -177,21 +168,22 @@ function CashHandoverContent() {
         <Card className="col-span-2 md:col-span-1 border-green-200 bg-green-50/50 dark:border-green-900 dark:bg-green-950/20 shadow-sm">
           <CardHeader className="flex flex-row items-start justify-between space-y-0 p-3 sm:p-4 pb-1 sm:pb-2">
             <CardTitle className="text-xs sm:text-sm font-medium text-green-900 dark:text-green-100 leading-tight">
-              Total Expected Cash
+              Total Pending Cash
             </CardTitle>
             <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-green-600 shrink-0 ml-1" />
           </CardHeader>
           <CardContent className="p-3 sm:p-4 pt-0 sm:pt-0">
             <div className="text-xl sm:text-2xl font-bold text-green-600 dark:text-green-400">
-              PKR {totalExpectedCash.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              {/* If pending handover exists, show 0 to submit, otherwise show total pending */}
+              PKR {isPending ? '0.00' : totalExpectedCash.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
             </div>
             <div className="flex flex-col gap-y-1 mt-1">
               <p className="text-[10px] sm:text-xs text-muted-foreground">
-                Today: {todayExpectedCash.toLocaleString()} (Gross: {summary?.grossCash || '0'}{parseFloat(summary?.expensesAmount || '0') > 0 ? ` - Exp: ${summary?.expensesAmount}` : ''})
+                Gross Collected: {summary?.grossCash || '0'}
               </p>
-              {hasPendingCash && (
-                <p className="text-[10px] sm:text-xs text-amber-600 font-medium">
-                  + Previous Days: {pendingCashAmount.toLocaleString()}
+              {parseFloat(summary?.expensesAmount || '0') > 0 && (
+                <p className="text-[10px] sm:text-xs text-red-600 font-medium">
+                  - Approved Expenses: {summary?.expensesAmount}
                 </p>
               )}
             </div>

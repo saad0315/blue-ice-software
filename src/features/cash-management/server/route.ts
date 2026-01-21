@@ -12,6 +12,7 @@ import {
   getDriverHandoverHistory,
   submitCashHandover,
   verifyCashHandover,
+  cancelCashHandover,
 } from '@/features/cash-management/queries';
 import {
   getCashHandoversQuerySchema,
@@ -28,6 +29,35 @@ const ADMIN: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN];
 
 const app = new Hono()
   // ========== DRIVER ENDPOINTS ==========
+
+  // Cancel pending cash handover (Driver)
+  .post('/driver/cancel/:id', sessionMiddleware, async (ctx) => {
+    const user = ctx.get('user');
+    const { id } = ctx.req.param();
+
+    if (user.role !== UserRole.DRIVER) {
+      return ctx.json({ error: 'Only drivers can cancel their handovers' }, 403);
+    }
+
+    try {
+      // Logic for cancellation
+      // Check ownership handled in query or we check it here
+      const handover = await getCashHandover(id);
+      if (!handover) return ctx.json({ error: 'Handover not found' }, 404);
+
+      const driver = await getDriverByUserId(user.id);
+      if (!driver || driver.id !== handover.driverId) {
+        return ctx.json({ error: 'Unauthorized' }, 403);
+      }
+
+      await cancelCashHandover(id, user.id);
+
+      return ctx.json({ success: true, message: 'Cash handover cancelled successfully' });
+    } catch (error: any) {
+      console.error('[CANCEL_CASH_HANDOVER_ERROR]:', error);
+      return ctx.json({ error: error.message || 'Failed to cancel cash handover' }, 500);
+    }
+  })
 
   // Get driver's day summary (for submission form)
   .get('/driver/day-summary', sessionMiddleware, async (ctx) => {
@@ -72,6 +102,7 @@ const app = new Hono()
         driverNotes: data.driverNotes,
         shiftStart: data.shiftStart ? new Date(data.shiftStart) : undefined,
         shiftEnd: data.shiftEnd ? new Date(data.shiftEnd) : undefined,
+        expenseIds: data.expenseIds,
       });
 
       // Notify admins

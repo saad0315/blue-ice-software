@@ -1,7 +1,6 @@
 import { OrderStatus, PaymentMethod } from '@prisma/client';
 
 import { db } from '@/lib/db';
-import { getPendingCashFromPreviousDays } from '@/features/cash-management/queries';
 
 export async function getDriverStats(driverId: string, date: Date) {
   const startOfDay = new Date(date);
@@ -27,7 +26,8 @@ export async function getDriverStats(driverId: string, date: Date) {
     prepaidOrders,
     expenseData,
     bottleData,
-    pendingFromPreviousDays,
+    unlinkedOrdersData,
+    unlinkedExpensesData,
   ] = await Promise.all([
     // Order counts
     db.order.count({ where: { driverId, scheduledDate: { gte: startOfDay, lte: endOfDay } } }),
@@ -87,8 +87,27 @@ export async function getDriverStats(driverId: string, date: Date) {
       },
     }),
 
-    // Get pending cash from previous days (cash collected but not yet handed over)
-    getPendingCashFromPreviousDays(driverId),
+    // Get unlinked pending cash (Transaction Based)
+    db.order.aggregate({
+      where: {
+        driverId,
+        status: OrderStatus.COMPLETED,
+        paymentMethod: PaymentMethod.CASH,
+        cashHandoverId: null,
+      },
+      _sum: { cashCollected: true },
+    }),
+
+    // Get unlinked pending expenses (Transaction Based)
+    db.expense.aggregate({
+      where: {
+        driverId,
+        status: 'APPROVED',
+        paymentMethod: 'CASH_ON_HAND',
+        cashHandoverId: null,
+      },
+      _sum: { amount: true },
+    }),
   ]);
 
   const cashCollected = parseFloat(cashOrders._sum.cashCollected?.toString() || '0');
@@ -101,10 +120,13 @@ export async function getDriverStats(driverId: string, date: Date) {
   const emptyTaken = bottleData._sum.emptyTaken || 0;
   const damagedReturned = bottleData._sum.damagedReturned || 0;
 
-  // Calculate total cash including pending from previous days
+  // Calculate Transaction-Based Total Pending Cash
+  const totalUnlinkedCash = parseFloat(unlinkedOrdersData._sum.cashCollected?.toString() || '0');
+  const totalUnlinkedExpenses = parseFloat(unlinkedExpensesData._sum.amount?.toString() || '0');
+  const netPendingCash = totalUnlinkedCash - totalUnlinkedExpenses;
+
+  // "todayNetCash" is mostly for display. The critical operational number is "netPendingCash"
   const todayNetCash = cashCollected - expenses;
-  const pendingCashFromPreviousDays = parseFloat(pendingFromPreviousDays.netPendingCash);
-  const totalPendingCash = todayNetCash + pendingCashFromPreviousDays;
 
   return {
     // Order breakdown
@@ -123,18 +145,18 @@ export async function getDriverStats(driverId: string, date: Date) {
     expenses: expenses.toFixed(2),
     netCash: todayNetCash.toFixed(2),
 
-    // Pending cash from previous days (NEW)
+    // Pending cash (Transaction Based)
     pendingFromPreviousDays: {
-      totalPendingCash: pendingFromPreviousDays.totalPendingCash,
-      totalPendingExpenses: pendingFromPreviousDays.totalPendingExpenses,
-      netPendingCash: pendingFromPreviousDays.netPendingCash,
-      pendingDaysCount: pendingFromPreviousDays.pendingDays.length,
-      pendingDays: pendingFromPreviousDays.pendingDays,
-      hasPendingCash: pendingCashFromPreviousDays > 0,
+      totalPendingCash: totalUnlinkedCash.toFixed(2),
+      totalPendingExpenses: totalUnlinkedExpenses.toFixed(2),
+      netPendingCash: netPendingCash.toFixed(2),
+      pendingDaysCount: 0, // Deprecated
+      pendingDays: [], // Deprecated
+      hasPendingCash: netPendingCash > 0,
     },
 
-    // Total cash to handover (today + previous days pending)
-    totalPendingCash: totalPendingCash.toFixed(2),
+    // Total cash to handover (Total Net Pending)
+    totalPendingCash: netPendingCash.toFixed(2),
 
     // Order counts by payment method
     cashOrdersCount: cashOrders._count || 0,

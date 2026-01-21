@@ -306,6 +306,10 @@ model Order {
   rescheduledToDate     DateTime?           @db.Date // If rescheduled, new date
   originalScheduledDate DateTime?           @db.Date // Track original date for rescheduled orders
 
+  // Transaction-Based Settlement Linkage
+  cashHandoverId String?
+  cashHandover   CashHandover? @relation(fields: [cashHandoverId], references: [id])
+
   orderItems OrderItem[]
 
   createdAt DateTime @default(now())
@@ -314,6 +318,7 @@ model Order {
   @@index([scheduledDate, status])
   @@index([driverId, scheduledDate])
   @@index([customerId, status])
+  @@index([cashHandoverId])
 }
 
 model OrderItem {
@@ -434,6 +439,10 @@ model CashHandover {
   status      CashHandoverStatus @default(PENDING)
   driverNotes String? // Driver's explanation for any discrepancy
 
+  // Transaction Linkage
+  orders   Order[]
+  expenses Expense[]
+
   // Admin Verification
   verifiedBy       String? // Admin user ID who verified
   verifiedAt       DateTime?
@@ -446,7 +455,7 @@ model CashHandover {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@unique([driverId, date]) // One handover per driver per day
+  // REMOVED @@unique([driverId, date]) for transaction-based model to allow multiple handovers per day if needed
   @@index([date])
   @@index([status])
   @@index([driverId, date])
@@ -583,6 +592,10 @@ model Expense {
   // Financial Source
   paymentMethod ExpensePaymentMethod @default(CASH_ON_HAND)
 
+  // Transaction-Based Settlement Linkage
+  cashHandoverId String?
+  cashHandover   CashHandover? @relation(fields: [cashHandoverId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -590,6 +603,7 @@ model Expense {
   @@index([status])
   @@index([spentByUserId])
   @@index([driverId])
+  @@index([cashHandoverId])
 }
 
 model Notification {
