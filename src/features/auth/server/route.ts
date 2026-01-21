@@ -165,26 +165,48 @@ const app = new Hono()
       z.object({
         search: z.string().nullish(),
         suspended: z.string().optional(),
+        page: z.string().optional(),
+        limit: z.string().optional(),
       }),
     ),
     async (ctx) => {
-      const { search, suspended } = ctx.req.valid('query');
+      const { search, suspended, page, limit } = ctx.req.valid('query');
+
+      const pageNumber = parseInt(page || '1');
+      const limitNumber = parseInt(limit || '10');
+      const skip = (pageNumber - 1) * limitNumber;
 
       try {
-        const users = await db.user.findMany({
-          where: {
-            AND: [
-              search
-                ? {
-                    OR: [{ name: { contains: search, mode: 'insensitive' } }, { email: { contains: search, mode: 'insensitive' } }],
-                  }
-                : {},
-              suspended !== undefined ? { suspended: suspended === 'true' } : {},
-            ],
+        const where: Prisma.UserWhereInput = {
+          AND: [
+            search
+              ? {
+                  OR: [{ name: { contains: search, mode: 'insensitive' } }, { email: { contains: search, mode: 'insensitive' } }],
+                }
+              : {},
+            suspended !== undefined ? { suspended: suspended === 'true' } : {},
+          ],
+        };
+
+        const [users, totalCount] = await Promise.all([
+          db.user.findMany({
+            where,
+            skip,
+            take: limitNumber,
+            orderBy: { createdAt: 'desc' },
+          }),
+          db.user.count({ where }),
+        ]);
+
+        return ctx.json({
+          data: users,
+          pagination: {
+            total: totalCount,
+            page: pageNumber,
+            limit: limitNumber,
+            totalPages: Math.ceil(totalCount / limitNumber),
           },
         });
-
-        return ctx.json({ data: users });
       } catch (error) {
         console.error('[GET_USERS]:', error);
         return ctx.json({ error: 'Internal Server Error' }, 500);
