@@ -896,6 +896,7 @@ export async function createOrder(data: {
   return await db.order.create({
     data: {
       ...orderData,
+      driverId: finalDriverId, // Use the resolved driver ID
       deliveryCharge: new Prisma.Decimal(orderData.deliveryCharge),
       discount: new Prisma.Decimal(orderData.discount),
       totalAmount,
