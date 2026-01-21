@@ -48,69 +48,67 @@ model StockTransaction {
 }
 ```
 
-*Note: Since we are in a production-ready phase, we might want to avoid heavy migrations if possible. However, `StockTransaction` is essential for audit.*
+## 3. Workflow & Impact Analysis
 
-### 2.3 Revised Workflow
+### 3.1 Morning Load (Warehouse -> Driver)
+- **Actor:** Warehouse Manager
+- **Action:** Create Load Sheet
+- **Logic:**
+  - `Product.stockFilled` (Warehouse) **DECREMENTS** by Load Qty.
+  - `Driver.truckStock` (Virtual) **INCREMENTS**.
 
-#### Step 1: Morning Load (Warehouse -> Driver)
-- **Actor:** Inventory Manager / Driver
-- **Action:** "Create Load Sheet"
-- **System:**
-  - Creates `StockTransaction` (Type: `DRIVER_LOAD`).
-  - **Decrements** `Product.stockFilled` (Warehouse).
-  - **Increments** `DriverInventory` (Virtual or Real). *Ideally, we just track the transaction, but having a `DriverInventory` table helps.*
-
-#### Step 2: Delivery (Driver -> Customer)
+### 3.2 Delivery Execution (Driver -> Customer)
 - **Actor:** Driver
-- **Action:** Complete Order
-- **System:**
-  - Records Sale in `Order`.
-  - **Does NOT decrement `Product.stockFilled`** (because it was already removed in Step 1).
-  - *Correction:* To avoid massive refactoring, we can keep the current logic BUT modify it to check: "Did this driver do a formal Load Sheet today?".
-  - **Preferred Strategy:** Switch all drivers to Load Sheet model. `updateOrder` stops touching `stockFilled` for `filledGiven`. It only touches `stockEmpty` (Driver takes empties) and `stockDamaged`.
+- **Action:** Complete Order (`updateOrder`)
+- **Logic Changes:**
+  - **STOP:** `Product.stockFilled` decrement (handled in Step 3.1).
+  - **STOP:** `Product.stockEmpty` increment (handled in Step 3.3).
+  - **CONTINUE:** `CustomerBottleWallet` updates (Customer balance logic remains untouched).
+  - **CONTINUE:** `Order` record creation (Sales stats remain accurate).
 
-#### Step 3: Evening Return (Driver -> Warehouse)
-- **Actor:** Inventory Manager
-- **Action:** "Verify Return"
-- **System:**
-  - Count physical bottles on truck.
-  - Create `StockTransaction` (Type: `DRIVER_RETURN`).
-  - **Increments** `Product.stockFilled` (Warehouse).
+### 3.3 Evening Return (Driver -> Warehouse)
+- **Actor:** Warehouse Manager
+- **Action:** Verify Return Sheet
+- **Logic:**
+  - Manager counts **Leftover Filled Bottles**.
+    - `Product.stockFilled` (Warehouse) **INCREMENTS**.
+  - Manager counts **Empty Bottles Returned**.
+    - `Product.stockEmpty` (Warehouse) **INCREMENTS**.
+    - *Validation:* Should match `Sum(Order.emptyTaken)`.
 
-### 2.4 Reconciliation (End of Day)
-The system calculates:
-- **Starting Load:** 50
-- **Sold (per Orders):** 40
-- **Expected Return:** 10
-- **Actual Return:** 8
-- **Discrepancy:** -2 (Missing/Lost)
+### 3.4 Reconciliation (End of Day)
+The system calculates discrepancies:
+- **Stock Reconciliation:** `Loaded - Returned = Sold`
+- **Empty Reconciliation:** `Customer Returns (Orders) = Warehouse Returns (Physical)`
 
-This Discrepancy is recorded (similar to Cash Discrepancy) and linked to the Driver.
+---
 
-## 3. Implementation Plan
+## 4. Deep Dive: Specific User Questions
 
-### Phase 1: Database Schema (High Priority)
-1.  Create `StockTransaction` model.
-2.  Add `stockReserved` to `Product` (optional, for safety).
+### Q1: Will it affect the customer’s bottle wallet?
+**Answer: No.**
+The `CustomerBottleWallet` logic depends on `OrderItems` (specifically `filledGiven` and `emptyTaken`). Since the Driver still completes orders using the exact same form, the customer's balance updates correctly. The only change is *where* the inventory comes from in the backend (Truck vs Warehouse), which is invisible to the customer logic.
 
-### Phase 2: Backend Logic
-1.  Create `POST /api/inventory/load` (Driver Load).
-2.  Create `POST /api/inventory/return` (Driver Return).
-3.  **Refactor `updateOrder`**:
-    - Remove `stockFilled` decrement logic.
-    - Keep `stockEmpty` increment logic (Empties returned by customer).
+### Q2: How will we manage the empty bottles return flow?
+**Answer: Two-Step Verification.**
+1.  **Collection:** Driver collects empties from customers. This is recorded in the Order (e.g., `emptyTaken: 5`). This data stays on the "Digital Truck".
+2.  **Warehouse Return:** At end of day, Warehouse Manager counts physical empties on the truck.
+    - **System Check:** "Driver collected 50 empties according to orders."
+    - **Physical Check:** "Driver actually returned 48 empties."
+    - **Result:** 2 Empties Missing (Driver Discrepancy).
+    - **Stock Update:** Warehouse `stockEmpty` increases by 48 (Physical reality).
 
-### Phase 3: Frontend UI
-1.  **Load Sheet Screen:** Input quantities per product.
-2.  **Return Sheet Screen:** Input quantities per product.
-3.  **Reconciliation Report:** Show Load vs. Sold vs. Return.
+### Q3: Will dashboard numbers (Given | Empty | Net) remain accurate?
+**Answer: Yes, and they will be more verifiable.**
+- **Dashboard Stats:** These are calculated from `Order` tables. Since we are *not* changing how orders are recorded, these graphs remain 100% accurate representations of *Sales Activity*.
+- **Data Integrity:** By decoupling the *Sales Record* from the *Warehouse Inventory Update*, we actually prevent data corruption. Even if a driver makes a mistake in an order, the Warehouse Count (Load/Return) ensures the global inventory count remains physically accurate.
 
-## 4. Risk Mitigation
-- **Transition Period:** If we deploy this, existing `updateOrder` logic stops updating stock. We must ensure drivers start using Load Sheets immediately, or we add a feature flag `ENABLE_TRUCK_INVENTORY`.
-- **Flag Logic:**
-  - Add `useTruckInventory` boolean to `SystemSettings` (or env var).
-  - If `true`: `updateOrder` skips stock decrement.
-  - If `false`: `updateOrder` continues decrementing (Legacy Mode).
+---
 
-## 5. Recommendation
-We proceed with **Phase 1 & 2** immediately to close the loop on inventory accuracy.
+## 5. Risk Mitigation
+- **Transition Period:** We will add a feature flag `ENABLE_TRUCK_INVENTORY`.
+  - If `true`: `updateOrder` skips stock updates.
+  - If `false`: `updateOrder` continues direct updates (Legacy Mode).
+
+## 6. Recommendation
+We proceed with the implementation plan. The design ensures customer data safety while fixing the warehouse inventory gaps.
