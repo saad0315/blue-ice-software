@@ -1,6 +1,7 @@
 import { ExpenseStatus, OrderStatus, Prisma, UserRole } from '@prisma/client';
 
 import { hashPassword } from '@/lib/authenticate';
+import { toUtcStartOfDay, toUtcEndOfDay } from '@/lib/date-utils';
 import { db } from '@/lib/db';
 
 export async function createDriver(data: {
@@ -54,10 +55,10 @@ export async function getDrivers(params: { search?: string; page: number; limit:
     }
     : {};
 
-  const startOfDay = date ? new Date(date) : new Date();
-  startOfDay.setUTCHours(0, 0, 0, 0);
-  const endOfDay = date ? new Date(date) : new Date();
-  endOfDay.setUTCHours(23, 59, 59, 999);
+  // Use PKT-aware UTC boundaries for consistent date filtering
+  const targetDate = date || new Date();
+  const startOfDay = toUtcStartOfDay(targetDate);
+  const endOfDay = toUtcEndOfDay(targetDate);
 
   const [drivers, total, cashCollectedStats] = await Promise.all([
     db.driverProfile.findMany({
@@ -255,9 +256,8 @@ export async function getDriverDetailStats(driverId: string, params?: { startDat
   const { startDate, endDate, date } = params || {};
 
   // Default to current month if no dates provided
-  const start = startDate || new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-  const end = endDate || new Date();
-  end.setUTCHours(23, 59, 59, 999);
+  const start = startDate ? toUtcStartOfDay(startDate) : toUtcStartOfDay(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const end = endDate ? toUtcEndOfDay(endDate) : toUtcEndOfDay(new Date());
 
   const whereCondition: Prisma.OrderWhereInput = {
     driverId,
@@ -371,14 +371,14 @@ export async function getDriverDetailStats(driverId: string, params?: { startDat
       },
     }),
 
-    // Today's statistics
+    // Today's statistics - use PKT-aware boundaries
     db.order.aggregate({
       where: {
         driverId,
         status: OrderStatus.COMPLETED,
         scheduledDate: {
-          gte: date ? new Date(new Date(date).setUTCHours(0, 0, 0, 0)) : new Date(new Date().setUTCHours(0, 0, 0, 0)),
-          lte: date ? new Date(new Date(date).setUTCHours(23, 59, 59, 999)) : new Date(new Date().setUTCHours(23, 59, 59, 999)),
+          gte: toUtcStartOfDay(date || new Date()),
+          lte: toUtcEndOfDay(date || new Date()),
         },
       },
       _count: { id: true },
@@ -486,10 +486,9 @@ export async function getDriverDeliveries(
   const { page, limit, startDate, endDate, status = OrderStatus.COMPLETED } = params;
   const skip = (page - 1) * limit;
 
-  // Default to current month if no dates provided
-  const start = startDate || new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-  const end = endDate || new Date();
-  end.setUTCHours(23, 59, 59, 999);
+  // Default to current month if no dates provided - use PKT-aware boundaries
+  const start = startDate ? toUtcStartOfDay(startDate) : toUtcStartOfDay(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const end = endDate ? toUtcEndOfDay(endDate) : toUtcEndOfDay(new Date());
 
   const where: Prisma.OrderWhereInput = {
     driverId,

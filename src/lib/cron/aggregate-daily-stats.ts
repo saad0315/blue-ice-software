@@ -1,15 +1,17 @@
 import { OrderStatus } from '@prisma/client';
-import { endOfDay, startOfDay, subDays } from 'date-fns';
+import { subDays } from 'date-fns';
 
+import { toUtcStartOfDay, toUtcEndOfDay } from '@/lib/date-utils';
 import { db } from '@/lib/db';
 
 /**
  * Aggregates daily statistics for a specific date
- * This should be run once per day (preferably at midnight) via a cron job
+ * This should be run once per day (preferably at midnight PKT) via a cron job
  */
 export async function aggregateDailyStats(date: Date = new Date()) {
-  const dayStart = startOfDay(date);
-  const dayEnd = endOfDay(date);
+  // Use PKT-aware UTC boundaries for consistent aggregation
+  const dayStart = toUtcStartOfDay(date);
+  const dayEnd = toUtcEndOfDay(date);
 
   console.log(`[CRON] Aggregating daily stats for ${dayStart.toISOString()}`);
 

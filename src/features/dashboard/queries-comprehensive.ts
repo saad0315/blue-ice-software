@@ -1,11 +1,13 @@
 import { CashHandoverStatus, ExpenseStatus, OrderStatus, PaymentMethod } from '@prisma/client';
-import { differenceInDays, endOfDay, format, startOfDay, subDays } from 'date-fns';
+import { differenceInDays, format, subDays } from 'date-fns';
 
+import { toUtcStartOfDay, toUtcEndOfDay } from '@/lib/date-utils';
 import { db } from '@/lib/db';
 
 export async function getComprehensiveDashboardData(params?: { startDate?: Date; endDate?: Date }) {
-  const { startDate = startOfDay(new Date()), endDate = endOfDay(new Date()) } = params || {};
-  const today = startOfDay(new Date());
+  // Use PKT-aware UTC boundaries for consistent date filtering
+  const { startDate = toUtcStartOfDay(new Date()), endDate = toUtcEndOfDay(new Date()) } = params || {};
+  const today = toUtcStartOfDay(new Date());
 
   // Determine Historical vs Live Periods
   const isHistoricalOnly = endDate < today;
