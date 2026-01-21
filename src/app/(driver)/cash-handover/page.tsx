@@ -21,7 +21,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 function CashHandoverContent() {
   const { data: summary, isLoading, error } = useDriverDaySummary();
   const { data: expensesData } = useGetExpenses({ status: ExpenseStatus.PENDING });
-  const { mutate: submitHandover, isPending } = useSubmitCashHandover();
+  const { mutate: submitHandover, isPending: isSubmitting } = useSubmitCashHandover();
 
   const [actualCash, setActualCash] = useState('');
   const [driverNotes, setDriverNotes] = useState('');
@@ -387,8 +387,8 @@ function CashHandoverContent() {
             </div>
 
             {/* Submit Button */}
-            <Button type="submit" size="lg" className="w-full" disabled={isPending || !actualCash}>
-              {isPending ? (
+            <Button type="submit" size="lg" className="w-full" disabled={isSubmitting || !actualCash}>
+              {isSubmitting ? (
                 <>
                   <Clock className="mr-2 h-4 w-4 animate-spin" />
                   Submitting...
