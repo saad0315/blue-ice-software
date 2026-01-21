@@ -1,3 +1,5 @@
+import { HandoverType, InventoryHandoverStatus, StockTransactionType } from '@prisma/client';
+
 import { db } from '@/lib/db';
 
 /**
@@ -13,6 +15,7 @@ export async function getInventoryStats() {
       stockFilled: true,
       stockEmpty: true,
       stockDamaged: true,
+      stockReserved: true,
       isReturnable: true,
     },
     orderBy: {
@@ -37,20 +40,22 @@ export async function getInventoryStats() {
   const totalFilled = products.reduce((sum, p) => sum + p.stockFilled, 0);
   const totalEmpty = products.reduce((sum, p) => sum + p.stockEmpty, 0);
   const totalDamaged = products.reduce((sum, p) => sum + p.stockDamaged, 0);
+  const totalReserved = products.reduce((sum, p) => sum + (p.stockReserved || 0), 0);
   const totalWithCustomers = Array.from(bottlesWithCustomersMap.values()).reduce((sum, val) => sum + val, 0);
 
   return {
     products: products.map((p) => ({
       ...p,
       bottlesWithCustomers: bottlesWithCustomersMap.get(p.id) || 0,
-      totalBottles: p.stockFilled + p.stockEmpty + p.stockDamaged + (bottlesWithCustomersMap.get(p.id) || 0),
+      totalBottles: p.stockFilled + p.stockEmpty + p.stockDamaged + (p.stockReserved || 0) + (bottlesWithCustomersMap.get(p.id) || 0),
     })),
     totals: {
       filled: totalFilled,
       empty: totalEmpty,
       damaged: totalDamaged,
+      reserved: totalReserved,
       withCustomers: totalWithCustomers,
-      total: totalFilled + totalEmpty + totalDamaged + totalWithCustomers,
+      total: totalFilled + totalEmpty + totalDamaged + totalReserved + totalWithCustomers,
     },
   };
 }
@@ -229,4 +234,172 @@ export async function getBottlesWithCustomers(productId?: string) {
     productSku: wallet.product.sku,
     bottleBalance: wallet.balance,
   }));
+}
+
+// ------------------------------------------------------------------
+// NEW: TRUCK INVENTORY LOGIC (LOAD & RETURN)
+// ------------------------------------------------------------------
+
+/**
+ * Create a LOAD Handover (Warehouse -> Truck)
+ * Decrements Warehouse Stock, Records Handover
+ */
+export async function createLoadHandover(data: {
+  driverId: string;
+  date: Date;
+  warehouseMgrId: string;
+  items: { productId: string; quantity: number }[];
+}) {
+  return await db.$transaction(async (tx) => {
+    // 1. Verify Stock Availability
+    for (const item of data.items) {
+      const product = await tx.product.findUnique({ where: { id: item.productId } });
+      if (!product) throw new Error(`Product ${item.productId} not found`);
+      if (product.stockFilled < item.quantity) {
+        throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stockFilled}, Requested: ${item.quantity}`);
+      }
+    }
+
+    // 2. Create Handover Record
+    const handover = await tx.inventoryHandover.create({
+      data: {
+        driverId: data.driverId,
+        date: data.date,
+        type: HandoverType.LOAD,
+        status: InventoryHandoverStatus.CONFIRMED, // Auto-confirming for now, can be PENDING if driver needs to sign
+        warehouseMgrId: data.warehouseMgrId,
+        items: {
+          create: data.items.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            condition: 'GOOD',
+          })),
+        },
+      },
+    });
+
+    // 3. Update Stock & Create Transactions
+    for (const item of data.items) {
+      const product = await tx.product.findUnique({ where: { id: item.productId } });
+      if (!product) continue;
+
+      // Decrement Warehouse Stock
+      // We assume loaded bottles are "Filled".
+      // If we load empties (rare but possible), we'd need a `type` in items. For now assuming Filled.
+      await tx.product.update({
+        where: { id: item.productId },
+        data: {
+          stockFilled: { decrement: item.quantity },
+          // We could optionally increment `stockReserved` if we want to track "On Truck" as a warehouse metric,
+          // but usually "On Truck" is separate. The requirement is to DECREMENT warehouse stock.
+        },
+      });
+
+      // Create Stock Transaction Log
+      await tx.stockTransaction.create({
+        data: {
+          productId: item.productId,
+          type: StockTransactionType.DRIVER_LOAD,
+          quantity: item.quantity,
+          driverId: data.driverId,
+          referenceId: handover.id,
+          createdById: data.warehouseMgrId,
+          stockFilledBefore: product.stockFilled,
+          stockFilledAfter: product.stockFilled - item.quantity,
+          stockEmptyBefore: product.stockEmpty,
+          stockEmptyAfter: product.stockEmpty,
+          stockDamagedBefore: product.stockDamaged,
+          stockDamagedAfter: product.stockDamaged,
+        },
+      });
+    }
+
+    return handover;
+  });
+}
+
+/**
+ * Create a RETURN Handover (Truck -> Warehouse)
+ * Increments Warehouse Stock (Filled & Empty), Records Handover
+ */
+export async function createReturnHandover(data: {
+  driverId: string;
+  date: Date;
+  warehouseMgrId: string;
+  items: { productId: string; quantity: number; condition: 'FILLED' | 'EMPTY' | 'DAMAGED' }[];
+}) {
+  return await db.$transaction(async (tx) => {
+    // 1. Create Handover Record
+    const handover = await tx.inventoryHandover.create({
+      data: {
+        driverId: data.driverId,
+        date: data.date,
+        type: HandoverType.RETURN,
+        status: InventoryHandoverStatus.CONFIRMED,
+        warehouseMgrId: data.warehouseMgrId,
+        items: {
+          create: data.items.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            condition: item.condition,
+          })),
+        },
+      },
+    });
+
+    // 2. Update Stock & Create Transactions
+    for (const item of data.items) {
+      const product = await tx.product.findUnique({ where: { id: item.productId } });
+      if (!product) continue;
+
+      // Determine which stock to increment
+      const returnType = item.condition;
+
+      let updateData = {};
+      let stockFilledAfter = product.stockFilled;
+      let stockEmptyAfter = product.stockEmpty;
+      let stockDamagedAfter = product.stockDamaged;
+
+      if (returnType === 'FILLED') {
+        updateData = { stockFilled: { increment: item.quantity } };
+        stockFilledAfter += item.quantity;
+      } else if (returnType === 'EMPTY') {
+        updateData = { stockEmpty: { increment: item.quantity } };
+        stockEmptyAfter += item.quantity;
+      } else if (returnType === 'DAMAGED') {
+        updateData = { stockDamaged: { increment: item.quantity } };
+        stockDamagedAfter += item.quantity;
+      } else {
+        // Fallback or error handling
+        updateData = { stockFilled: { increment: item.quantity } };
+        stockFilledAfter += item.quantity;
+      }
+
+      await tx.product.update({
+        where: { id: item.productId },
+        data: updateData,
+      });
+
+      // Create Stock Transaction Log
+      await tx.stockTransaction.create({
+        data: {
+          productId: item.productId,
+          type: StockTransactionType.DRIVER_RETURN,
+          quantity: item.quantity,
+          driverId: data.driverId,
+          referenceId: handover.id,
+          createdById: data.warehouseMgrId,
+          stockFilledBefore: product.stockFilled,
+          stockFilledAfter,
+          stockEmptyBefore: product.stockEmpty,
+          stockEmptyAfter,
+          stockDamagedBefore: product.stockDamaged,
+          stockDamagedAfter,
+          notes: `Return Condition: ${returnType}`,
+        },
+      });
+    }
+
+    return handover;
+  });
 }

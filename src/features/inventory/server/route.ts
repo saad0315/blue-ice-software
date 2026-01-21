@@ -3,8 +3,24 @@ import { Hono } from 'hono';
 
 import { sessionMiddleware } from '@/lib/session-middleware';
 
-import { adjustStock, getBottlesWithCustomers, getInventoryStats, recordDamageOrLoss, refillBottles, restockProduct } from '../queries';
-import { adjustmentSchema, damageSchema, refillSchema, restockSchema } from '../schema';
+import {
+  adjustStock,
+  createLoadHandover,
+  createReturnHandover,
+  getBottlesWithCustomers,
+  getInventoryStats,
+  recordDamageOrLoss,
+  refillBottles,
+  restockProduct,
+} from '../queries';
+import {
+  adjustmentSchema,
+  damageSchema,
+  loadHandoverSchema,
+  refillSchema,
+  restockSchema,
+  returnHandoverSchema,
+} from '../schema';
 
 const app = new Hono()
   .get('/stats', sessionMiddleware, async (c) => {
@@ -35,6 +51,43 @@ const app = new Hono()
     const data = c.req.valid('json');
     const product = await adjustStock(data);
     return c.json({ success: true, product });
+  })
+  // --- NEW HANDOVER ROUTES ---
+  .post('/handover/load', sessionMiddleware, zValidator('json', loadHandoverSchema), async (c) => {
+    const user = c.get('user');
+    const data = c.req.valid('json');
+
+    try {
+      const handover = await createLoadHandover({
+        ...data,
+        date: new Date(data.date),
+        warehouseMgrId: user.id,
+      });
+      return c.json({ success: true, data: handover });
+    } catch (error: any) {
+      return c.json({ success: false, error: error.message }, 400);
+    }
+  })
+  .post('/handover/return', sessionMiddleware, zValidator('json', returnHandoverSchema), async (c) => {
+    const user = c.get('user');
+    const data = c.req.valid('json');
+
+    try {
+      const items = data.items.map((item) => ({
+        ...item,
+        condition: item.condition as 'FILLED' | 'EMPTY' | 'DAMAGED',
+      }));
+
+      const handover = await createReturnHandover({
+        driverId: data.driverId,
+        date: new Date(data.date),
+        warehouseMgrId: user.id,
+        items,
+      });
+      return c.json({ success: true, data: handover });
+    } catch (error: any) {
+      return c.json({ success: false, error: error.message }, 400);
+    }
   });
 
 export default app;

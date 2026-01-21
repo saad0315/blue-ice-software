@@ -44,11 +44,10 @@ However, a **critical business logic flaw** exists in the Inventory/Order Genera
 2.  **`src/features/driver-view` vs `src/features/drivers`**: While not strictly "unused", the naming is slightly ambiguous. `driver-view` is the App, `drivers` is the Admin Management. This is acceptable but `driver-app` would be clearer.
 
 ### Recommended Refactoring
-1.  **Inventory Reservation:**
-    - Modify `Product` schema to add `stockReserved` (Int).
-    - In `generateOrders`, increment `stockReserved`.
-    - In `updateOrder` (Completion), decrement `stockReserved` and `stockFilled`.
-    - In `updateOrder` (Cancellation), decrement `stockReserved`.
+1.  **Inventory Reservation (Load Sheet Model):**
+    - The "Truck Inventory" design (Load/Return Sheets) is the approved solution.
+    - **Do NOT** decrement `stockFilled` in `updateOrder`. This is now handled by the `Load Sheet` (Warehouse -> Truck).
+    - **Feature Flag Implemented:** `NEXT_PUBLIC_ENABLE_TRUCK_INVENTORY` controls this transition. When `true`, `updateOrder` stops decrementing warehouse stock.
 
 2.  **Security Hardening:**
     - Add explicit ownership check in `updateOrder` route:

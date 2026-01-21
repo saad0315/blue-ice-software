@@ -1209,20 +1209,54 @@ export async function updateOrder(
           throw new Error(`Product not found: ${item.productId}`);
         }
 
-        if (product.stockFilled < item.filledGiven) {
-          throw new Error(
-            `Insufficient stock for product ${item.productId}. Available: ${product.stockFilled}, Required: ${item.filledGiven}`,
-          );
+        // --- INVENTORY LOGIC CHANGE (Truck Inventory System) ---
+        // DEPRECATED: stockFilled decrement. This is now handled by the "Load Sheet" (Warehouse -> Truck).
+        // If we decrement here again, we double count.
+
+        // However, we MUST still handle:
+        // 1. Empties returned by customer (Driver collects them) -> Increments Driver's Truck Stock (Empty) or Warehouse Stock?
+        //    Design Decision: Driver keeps empties on truck until "Return Sheet" (Truck -> Warehouse).
+        //    So we DO NOT increment Warehouse stockEmpty here either.
+
+        // 2. Damaged bottles returned?
+        //    Same logic. Driver holds them until return.
+
+        // 3. Validation?
+        //    Ideally, we check if Driver has enough "Truck Stock" to deliver.
+        //    But for now, we just REMOVE the Warehouse decrement to stop the race condition/double counting.
+
+        // Wait! We definitely need to record that the customer gave back empties.
+        // But physically, they are on the truck, not in the warehouse yet.
+        // So we touch NO warehouse stock here.
+
+        // We only verify product exists.
+        if (!product) {
+           throw new Error(`Product not found: ${item.productId}`);
         }
 
-        await tx.product.update({
-          where: { id: item.productId },
-          data: {
-            stockFilled: { decrement: item.filledGiven },
-            stockEmpty: { increment: item.emptyTaken }, // Good empties
-            stockDamaged: { increment: item.damagedReturned }, // Broken/Lost (Requires Schema Update applied)
-          },
-        });
+        // --- INVENTORY LOGIC ---
+        // Feature Flag: ENABLE_TRUCK_INVENTORY
+        // If TRUE: We assume stock was loaded onto truck via Load Sheet. Do NOT decrement Warehouse stock.
+        // If FALSE (Legacy): We decrement Warehouse stock directly here.
+        const useTruckInventory = process.env.NEXT_PUBLIC_ENABLE_TRUCK_INVENTORY === 'true';
+
+        if (!useTruckInventory) {
+          if (product.stockFilled < item.filledGiven) {
+            throw new Error(
+              `Insufficient stock for product ${item.productId}. Available: ${product.stockFilled}, Required: ${item.filledGiven}`,
+            );
+          }
+
+          await tx.product.update({
+            where: { id: item.productId },
+            data: {
+              stockFilled: { decrement: item.filledGiven },
+              stockEmpty: { increment: item.emptyTaken }, // Good empties
+              stockDamaged: { increment: item.damagedReturned }, // Broken/Lost (Requires Schema Update applied)
+            },
+          });
+        }
+        // Else: No product updates. Stock deducted at Load time. Empties added at Return time.
       }
     }
 

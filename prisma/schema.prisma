@@ -90,6 +90,29 @@ enum ExpensePaymentMethod {
   BANK_TRANSFER
 }
 
+// --- NEW INVENTORY ENUMS ---
+enum InventoryHandoverStatus {
+  PENDING // Draft
+  CONFIRMED // Signed off by Driver & Warehouse
+}
+
+enum HandoverType {
+  LOAD // Morning: Warehouse -> Truck
+  RETURN // Evening: Truck -> Warehouse
+}
+
+enum StockTransactionType {
+  RESTOCK_IN // Supplier -> Warehouse
+  DRIVER_LOAD // Warehouse -> Driver (Check-out)
+  DRIVER_RETURN // Driver -> Warehouse (Check-in)
+  DAMAGE_WAREHOUSE // Warehouse -> Trash
+  DAMAGE_DRIVER // Driver -> Trash (Broken on route)
+  EMPTY_IN // Empty bottles returned from customers
+  LOSS_OUT // Bottles lost/stolen
+  ADJUSTMENT // Manual stock adjustment
+  FILL_CONVERSION // Convert empty to filled
+}
+
 // --------------------------------------------------------
 // 2. AUTHENTICATION & USERS (Decoupled Logic)
 // --------------------------------------------------------
@@ -129,6 +152,10 @@ model User {
   expensesApproved Expense[] @relation("ExpenseApprover")
 
   notifications Notification[]
+
+  // Inventory Handover Actions
+  inventoryManaged  InventoryHandover[] @relation("InventoryManager")
+  stockTransactions StockTransaction[]  @relation("StockTransactor")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -227,18 +254,21 @@ model Product {
   basePrice Decimal @db.Decimal(10, 2) // Default market price
 
   // Inventory Tracking
-  isReturnable Boolean @default(true) // Pani ki bottle wapis aati hai, Dispenser nahi
-  stockFilled  Int     @default(0) // Plant Warehouse
-  stockEmpty   Int     @default(0) // Plant Warehouse
-  stockDamaged Int     @default(0) // Broken/Lost Bottles (Audit Trail)
+  isReturnable  Boolean @default(true) // Pani ki bottle wapis aati hai, Dispenser nahi
+  stockFilled   Int     @default(0) // Plant Warehouse
+  stockEmpty    Int     @default(0) // Plant Warehouse
+  stockDamaged  Int     @default(0) // Broken/Lost Bottles (Audit Trail)
+  stockReserved Int     @default(0) // Reserved for active orders/loads
 
   createdAt DateTime @default(now())
 
   // Relations
-  orderItems      OrderItem[]
-  specialPrices   CustomerProductPrice[]
-  bottleWallets   CustomerBottleWallet[]
-  CustomerProfile CustomerProfile[]
+  orderItems             OrderItem[]
+  specialPrices          CustomerProductPrice[]
+  bottleWallets          CustomerBottleWallet[]
+  CustomerProfile        CustomerProfile[]
+  stockTransactions      StockTransaction[]
+  inventoryHandoverItems InventoryHandoverItem[]
 }
 
 // Customer Specific Pricing (Tier System Override)
@@ -267,6 +297,88 @@ model CustomerBottleWallet {
   product  Product         @relation(fields: [productId], references: [id])
 
   @@unique([customerId, productId])
+}
+
+// --------------------------------------------------------
+// 4.5. INVENTORY & STOCK TRANSACTIONS
+// --------------------------------------------------------
+
+model StockTransaction {
+  id        String  @id @default(uuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  type     StockTransactionType
+  quantity Int
+
+  // Type-specific fields
+  reason      String? // For DAMAGE_OUT, LOSS_OUT
+  notes       String? // Additional notes
+  batchNumber String? // For RESTOCK_IN
+
+  // Before/After snapshots for audit
+  stockFilledBefore  Int
+  stockEmptyBefore   Int
+  stockDamagedBefore Int
+
+  stockFilledAfter  Int
+  stockEmptyAfter   Int
+  stockDamagedAfter Int
+
+  // Context
+  driverId String? // If transaction involves a driver
+  driver   DriverProfile? @relation(fields: [driverId], references: [id])
+
+  // Link to Handover
+  referenceId       String? // Link to InventoryHandover.id
+  inventoryHandover InventoryHandover? @relation(fields: [referenceId], references: [id])
+
+  // Who made the transaction
+  createdById String
+  createdBy   User   @relation("StockTransactor", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([productId, createdAt])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model InventoryHandover {
+  id         String @id @default(uuid())
+  readableId Int    @default(autoincrement())
+
+  driverId String
+  driver   DriverProfile @relation(fields: [driverId], references: [id])
+
+  date   DateTime                @db.Date
+  type   HandoverType
+  status InventoryHandoverStatus @default(PENDING)
+
+  // Who performed the action (Warehouse Manager)
+  warehouseMgrId String
+  warehouseMgr   User   @relation("InventoryManager", fields: [warehouseMgrId], references: [id])
+
+  items             InventoryHandoverItem[]
+  stockTransactions StockTransaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([driverId, date])
+  @@index([type])
+}
+
+model InventoryHandoverItem {
+  id                  String            @id @default(uuid())
+  inventoryHandoverId String
+  inventoryHandover   InventoryHandover @relation(fields: [inventoryHandoverId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  quantity  Int // Number of bottles Loaded or Returned
+  condition String? // "Good", "Damaged" (Specific to Returns)
 }
 
 // --------------------------------------------------------
@@ -360,6 +472,10 @@ model DriverProfile {
   cashHandovers      CashHandover[]
   expenses           Expense[]
   ledgers            DriverLedger[]
+
+  // Inventory
+  inventoryHandovers InventoryHandover[]
+  stockTransactions  StockTransaction[]
 }
 
 // --------------------------------------------------------
