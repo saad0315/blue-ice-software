@@ -1,7 +1,20 @@
 'use client';
 
 import { UserRole } from '@prisma/client';
-import { Box, DollarSign, LayoutDashboard, Map, MapPin, Package, Receipt, Settings, ShoppingCart, Truck, Users } from 'lucide-react';
+import {
+  Box,
+  ClipboardList,
+  DollarSign,
+  LayoutDashboard,
+  Map,
+  MapPin,
+  Package,
+  Receipt,
+  Settings,
+  ShoppingCart,
+  Truck,
+  Users,
+} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -42,6 +55,13 @@ const routes = [
     href: 'inventory',
     icon: Box,
     activeIcon: Box,
+    roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.INVENTORY_MGR],
+  },
+  {
+    label: 'Truck Inventory',
+    href: 'truck-inventory',
+    icon: ClipboardList,
+    activeIcon: ClipboardList,
     roles: [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.INVENTORY_MGR],
   },
   {
@@ -94,7 +114,7 @@ export const Navigation = () => {
         if (!allowedRoles.includes(user.role)) return null;
 
         const fullHref = `/${route.href}`;
-        const isActive = pathname === fullHref;
+        const isActive = pathname === fullHref || (route.href !== '' && pathname.startsWith(`/${route.href}`));
         const Icon = isActive ? route.activeIcon : route.icon;
 
         return (
