@@ -1,4 +1,4 @@
-import { OrderStatus, PaymentMethod, Prisma } from '@prisma/client';
+import { CustomerType, OrderStatus, PaymentMethod, Prisma } from '@prisma/client';
 
 import { db } from '@/lib/db';
 import { sendPushNotification } from '@/lib/firebase-admin';
@@ -8,7 +8,9 @@ export async function getOrders(params: {
   search?: string;
   status?: OrderStatus;
   customerId?: string;
+
   driverId?: string;
+  customerType?: CustomerType;
   date?: string;
   from?: string;
   to?: string;
@@ -32,6 +34,7 @@ export async function getOrders(params: {
       status ? { status } : {},
       customerId ? { customerId } : {},
       driverId ? (driverId === 'unassigned' ? { driverId: null } : { driverId }) : {},
+      params.customerType ? { customer: { type: params.customerType } } : {},
       routeId ? { customer: { routeId } } : {},
       // Modified Date Logic for Drivers:
       // If a specific date is requested (e.g., Today), we also want to include ALL past incomplete orders.
@@ -261,8 +264,8 @@ export async function getOrderForInvoice(id: string) {
   };
 }
 
-export async function generateOrders(data: { date: string; routeId?: string }) {
-  const { date, routeId } = data;
+export async function generateOrders(data: { date: string; routeId?: string; customerType?: CustomerType }) {
+  const { date, routeId, customerType } = data;
   const scheduledDate = new Date(date);
   const dayOfWeek = scheduledDate.getDay();
 
@@ -279,6 +282,7 @@ export async function generateOrders(data: { date: string; routeId?: string }) {
       not: null,
     },
     ...(routeId ? { routeId } : {}),
+    ...(customerType ? { type: customerType } : {}),
   };
 
   const customers = await db.customerProfile.findMany({
@@ -459,8 +463,12 @@ export type GenerateOrdersProgress = {
 };
 
 // Streaming version for real-time progress updates
-export async function* generateOrdersStream(data: { date: string; routeId?: string }): AsyncGenerator<GenerateOrdersProgress> {
-  const { date, routeId } = data;
+export async function* generateOrdersStream(data: {
+  date: string;
+  routeId?: string;
+  customerType?: CustomerType;
+}): AsyncGenerator<GenerateOrdersProgress> {
+  const { date, routeId, customerType } = data;
   const scheduledDate = new Date(date);
   const dayOfWeek = scheduledDate.getDay();
 
@@ -477,6 +485,7 @@ export async function* generateOrdersStream(data: { date: string; routeId?: stri
       not: null,
     },
     ...(routeId ? { routeId } : {}),
+    ...(customerType ? { type: customerType } : {}),
   };
 
   const customers = await db.customerProfile.findMany({
@@ -644,6 +653,118 @@ export async function* generateOrdersStream(data: { date: string; routeId?: stri
       : `Successfully created ${createdCount} orders`;
 
   yield { type: 'complete', created: createdCount, message, skippedDueToCredit };
+}
+
+export async function getGenerateOrdersPreview(data: { date: string; routeId?: string; customerType?: CustomerType }) {
+  const { date, routeId, customerType } = data;
+  const scheduledDate = new Date(date);
+  const dayOfWeek = scheduledDate.getDay();
+
+  // 1. Find matching customers
+  const where: Prisma.CustomerProfileWhereInput = {
+    user: {
+      isActive: true,
+      suspended: false,
+    },
+    deliveryDays: {
+      has: dayOfWeek,
+    },
+    defaultProductId: {
+      not: null,
+    },
+    ...(routeId ? { routeId } : {}),
+    ...(customerType ? { type: customerType } : {}),
+  };
+
+  const customers = await db.customerProfile.findMany({
+    where,
+    select: {
+      id: true,
+      defaultProductId: true,
+      defaultQuantity: true,
+      cashBalance: true,
+      creditLimit: true,
+      specialPrices: {
+        select: {
+          productId: true,
+          customPrice: true,
+        },
+      },
+    },
+  });
+
+  if (customers.length === 0) {
+    return { count: 0 };
+  }
+
+  // 2. Filter out customers who already have an order for this date
+  const existingOrders = await db.order.findMany({
+    where: {
+      scheduledDate: scheduledDate,
+      customerId: { in: customers.map((c) => c.id) },
+    },
+    select: { customerId: true },
+  });
+
+  const existingCustomerIds = new Set(existingOrders.map((o) => o.customerId));
+  const eligibleCustomers = customers.filter((c) => !existingCustomerIds.has(c.id));
+
+  if (eligibleCustomers.length === 0) {
+    return { count: 0 };
+  }
+
+  // 3. Fetch Products for stock and price check
+  const productIds = Array.from(new Set(eligibleCustomers.map((c) => c.defaultProductId!)));
+  const products = await db.product.findMany({
+    where: { id: { in: productIds } },
+    select: { id: true, basePrice: true, stockFilled: true },
+  });
+  const productMap = new Map(products.map((p) => [p.id, p]));
+
+  // 4. Calculate total stock needed vs available
+  // To match generateOrders strictly, we should fail if stock is insufficient.
+  // But for preview, maybe we just count how many WE COULD create given stock?
+  // The current generateOrders returns 0 if ANY stock is insufficient (global check).
+  // "if (insufficientStock.length > 0) return { count: 0 ... }"
+  // So we should replicate that logic.
+
+  const stockNeeded = new Map<string, number>();
+  for (const customer of eligibleCustomers) {
+    const productId = customer.defaultProductId!;
+    const currentNeed = stockNeeded.get(productId) || 0;
+    stockNeeded.set(productId, currentNeed + customer.defaultQuantity);
+  }
+
+  const insufficientStock: string[] = [];
+  for (const [productId, needed] of Array.from(stockNeeded.entries())) {
+    const product = productMap.get(productId);
+    if (!product || product.stockFilled < needed) {
+      insufficientStock.push(productId);
+    }
+  }
+
+  if (insufficientStock.length > 0) {
+    // If we want to communicate stock issue in preview, we could return it.
+    // For now, returning count: 0 as per logic
+    return { count: 0, insufficientStock };
+  }
+
+  // 5. Filter customers by credit limit
+  const customersToCreate = eligibleCustomers.filter((c) => {
+    const product = productMap.get(c.defaultProductId!);
+    if (!product) return false;
+
+    // Check for special price
+    const specialPrice = c.specialPrices.find((sp) => sp.productId === product.id);
+    const price = specialPrice ? specialPrice.customPrice : product.basePrice;
+
+    const orderAmount = price.mul(c.defaultQuantity);
+    const newBalance = c.cashBalance.sub(orderAmount);
+
+    return newBalance.gte(c.creditLimit.neg());
+  });
+
+  return { count: customersToCreate.length };
 }
 
 export async function createOrder(data: {

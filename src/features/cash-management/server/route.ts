@@ -71,7 +71,8 @@ const app = new Hono()
       const driver = await getDriverByUserId(user.id);
       if (!driver) return ctx.json({ error: 'Driver not found' }, 404);
 
-      const date = new Date(); // Today
+      const dateParam = ctx.req.query('date');
+      const date = dateParam ? new Date(dateParam) : new Date(); // Use client date if provided, else server today
       const summary = await getDriverDaySummary(driver.id, date);
 
       return ctx.json({ data: summary });

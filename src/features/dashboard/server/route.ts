@@ -9,8 +9,9 @@ import { sessionMiddleware } from '@/lib/session-middleware';
 
 const app = new Hono()
   .get('/', sessionMiddleware, async (ctx) => {
+    const dateParam = ctx.req.query('date');
     try {
-      const today = new Date();
+      const today = dateParam ? new Date(dateParam) : new Date();
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(today.getDate() - 30);
 

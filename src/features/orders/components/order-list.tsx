@@ -199,6 +199,22 @@ export function OrderTable<TData extends { id: string }, TValue>({ columns, data
               </SelectContent>
             </Select>
           </div>
+          <div className="min-w-[180px] lg:w-[180px]">
+            <Select
+              value={filters.customerType || 'all'}
+              onValueChange={(val) => setFilters({ customerType: val === 'all' ? null : val, page: 1 })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Customer Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="RESIDENTIAL">Residential</SelectItem>
+                <SelectItem value="COMMERCIAL">Commercial</SelectItem>
+                <SelectItem value="CORPORATE">Corporate</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="min-w-[260px] lg:w-auto">
             <Popover>
               <PopoverTrigger asChild>

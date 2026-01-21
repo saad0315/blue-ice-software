@@ -1,8 +1,7 @@
-import { OrderStatus, Prisma, UserRole } from '@prisma/client';
+import { ExpenseStatus, OrderStatus, Prisma, UserRole } from '@prisma/client';
 
 import { hashPassword } from '@/lib/authenticate';
 import { db } from '@/lib/db';
-import { toUtcStartOfDay, toUtcEndOfDay } from '@/lib/date-utils';
 
 export async function createDriver(data: {
   name: string;
@@ -41,8 +40,8 @@ export async function createDriver(data: {
   });
 }
 
-export async function getDrivers(params: { search?: string; page: number; limit: number }) {
-  const { search, page, limit } = params;
+export async function getDrivers(params: { search?: string; page: number; limit: number; date?: Date }) {
+  const { search, page, limit, date } = params;
   const skip = (page - 1) * limit;
 
   const where: Prisma.DriverProfileWhereInput = search
@@ -55,8 +54,10 @@ export async function getDrivers(params: { search?: string; page: number; limit:
     }
     : {};
 
-  const startOfDay = toUtcStartOfDay(new Date());
-  const endOfDay = toUtcEndOfDay(new Date());
+  const startOfDay = date ? new Date(date) : new Date();
+  startOfDay.setUTCHours(0, 0, 0, 0);
+  const endOfDay = date ? new Date(date) : new Date();
+  endOfDay.setUTCHours(23, 59, 59, 999);
 
   const [drivers, total, cashCollectedStats] = await Promise.all([
     db.driverProfile.findMany({
@@ -250,15 +251,13 @@ export async function deleteDriver(id: string) {
   });
 }
 
-export async function getDriverDetailStats(driverId: string, params?: { startDate?: Date; endDate?: Date }) {
-  const { startDate, endDate } = params || {};
+export async function getDriverDetailStats(driverId: string, params?: { startDate?: Date; endDate?: Date; date?: Date }) {
+  const { startDate, endDate, date } = params || {};
 
   // Default to current month if no dates provided
-  const now = new Date();
-  const defaultStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)); // UTC start of month
-
-  const start = startDate ? toUtcStartOfDay(startDate) : defaultStart;
-  const end = endDate ? toUtcEndOfDay(endDate) : toUtcEndOfDay(now);
+  const start = startDate || new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  const end = endDate || new Date();
+  end.setUTCHours(23, 59, 59, 999);
 
   const whereCondition: Prisma.OrderWhereInput = {
     driverId,
@@ -283,6 +282,7 @@ export async function getDriverDetailStats(driverId: string, params?: { startDat
     recentOrders,
     allTimeStats,
     todayStats,
+    expenseStats,
   ] = await Promise.all([
     // Driver basic info
     db.driverProfile.findUnique({
@@ -377,13 +377,28 @@ export async function getDriverDetailStats(driverId: string, params?: { startDat
         driverId,
         status: OrderStatus.COMPLETED,
         scheduledDate: {
-          gte: toUtcStartOfDay(new Date()),
-          lte: toUtcEndOfDay(new Date()),
+          gte: date ? new Date(new Date(date).setUTCHours(0, 0, 0, 0)) : new Date(new Date().setUTCHours(0, 0, 0, 0)),
+          lte: date ? new Date(new Date(date).setUTCHours(23, 59, 59, 999)) : new Date(new Date().setUTCHours(23, 59, 59, 999)),
         },
       },
       _count: { id: true },
       _sum: {
         cashCollected: true,
+      },
+    }),
+
+    // Expense Statistics
+    db.expense.groupBy({
+      by: ['status'],
+      where: {
+        driverId,
+        date: { gte: start, lte: end },
+      },
+      _sum: {
+        amount: true,
+      },
+      _count: {
+        id: true,
       },
     }),
   ]);
@@ -444,6 +459,17 @@ export async function getDriverDetailStats(driverId: string, params?: { startDat
       deliveries: todayStats._count.id,
       cashCollected: todayStats._sum.cashCollected?.toString() || '0',
     },
+    expenses: {
+      total: expenseStats.reduce((acc, curr) => acc + (curr._sum.amount?.toNumber() || 0), 0).toString(),
+      breakdown: expenseStats.map((stat) => ({
+        status: stat.status,
+        count: stat._count.id,
+        amount: stat._sum.amount?.toString() || '0',
+      })),
+      approved: expenseStats.find((s) => s.status === 'APPROVED')?._sum.amount?.toString() || '0',
+      pending: expenseStats.find((s) => s.status === 'PENDING')?._sum.amount?.toString() || '0',
+      rejected: expenseStats.find((s) => s.status === 'REJECTED')?._sum.amount?.toString() || '0',
+    },
   };
 }
 
@@ -461,11 +487,9 @@ export async function getDriverDeliveries(
   const skip = (page - 1) * limit;
 
   // Default to current month if no dates provided
-  const now = new Date();
-  const defaultStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0));
-
-  const start = startDate ? toUtcStartOfDay(startDate) : defaultStart;
-  const end = endDate ? toUtcEndOfDay(endDate) : toUtcEndOfDay(now);
+  const start = startDate || new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  const end = endDate || new Date();
+  end.setUTCHours(23, 59, 59, 999);
 
   const where: Prisma.OrderWhereInput = {
     driverId,

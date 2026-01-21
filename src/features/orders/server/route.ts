@@ -9,6 +9,7 @@ import {
   deleteOrder,
   generateOrders,
   generateOrdersStream,
+  getGenerateOrdersPreview,
   getOrder,
   getOrderForInvoice,
   getOrders,
@@ -112,6 +113,23 @@ const app = new Hono()
     } catch (error) {
       console.error(error);
       return ctx.json({ error: 'Failed to generate orders' }, 500);
+    }
+  })
+  .post('/generate/preview', sessionMiddleware, zValidator('json', generateOrdersSchema), async (ctx) => {
+    const user = ctx.get('user');
+
+    if (!([UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.INVENTORY_MGR] as UserRole[]).includes(user.role)) {
+      return ctx.json({ error: 'Unauthorized' }, 403);
+    }
+
+    const data = ctx.req.valid('json');
+
+    try {
+      const result = await getGenerateOrdersPreview(data);
+      return ctx.json({ data: result });
+    } catch (error) {
+      console.error(error);
+      return ctx.json({ error: 'Failed to preview orders' }, 500);
     }
   })
   .post('/generate-stream', sessionMiddleware, zValidator('json', generateOrdersSchema), async (ctx) => {

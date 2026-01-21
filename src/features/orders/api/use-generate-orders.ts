@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -143,4 +143,23 @@ export const useGenerateOrdersStream = () => {
     isGenerating,
     reset,
   };
+};
+
+export const useGenerateOrdersPreview = (data: GenerateOrdersInput) => {
+  return useQuery({
+    queryKey: ['generate-orders-preview', data],
+    queryFn: async () => {
+      const response = await client.api.orders.generate.preview.$post({
+        json: data,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch preview');
+      }
+
+      const result = await response.json();
+      return result.data;
+    },
+    enabled: !!data.date, // Only fetch if date is present
+  });
 };

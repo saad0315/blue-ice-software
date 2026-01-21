@@ -1,11 +1,12 @@
 import { OrderStatus, PaymentMethod } from '@prisma/client';
 
 import { db } from '@/lib/db';
-import { toUtcStartOfDay, toUtcEndOfDay } from '@/lib/date-utils';
 
 export async function getDriverStats(driverId: string, date: Date) {
-  const startOfDay = toUtcStartOfDay(date);
-  const endOfDay = toUtcEndOfDay(date);
+  const startOfDay = new Date(date);
+  startOfDay.setUTCHours(0, 0, 0, 0);
+  const endOfDay = new Date(date);
+  endOfDay.setUTCHours(23, 59, 59, 999);
 
   const completedOrdersWhere = {
     driverId,

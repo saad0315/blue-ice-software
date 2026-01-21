@@ -1,4 +1,4 @@
-import { OrderStatus } from '@prisma/client';
+import { CustomerType, OrderStatus } from '@prisma/client';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 
@@ -7,6 +7,7 @@ import { client } from '@/lib/hono';
 interface UseGetOrdersProps {
   driverId?: string;
   status?: OrderStatus;
+  customerType?: CustomerType;
   date?: string;
   from?: string;
   to?: string;
@@ -21,11 +22,14 @@ export const useGetOrders = (props?: UseGetOrdersProps) => {
   const from = props?.from || searchParams.get('from') || undefined;
   const to = props?.to || searchParams.get('to') || undefined;
   const driverId = props?.driverId || searchParams.get('driverId') || undefined;
+  const rawCustomerType = props?.customerType || searchParams.get('customerType');
+  const customerType =
+    rawCustomerType && rawCustomerType !== 'null' && rawCustomerType !== '' ? (rawCustomerType as CustomerType) : undefined;
   const page = searchParams.get('page') ? parseInt(searchParams.get('page')!) : 1;
   const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : 20;
 
   return useQuery({
-    queryKey: ['orders', { search, routeId, status, date, from, to, driverId, page, limit }],
+    queryKey: ['orders', { search, routeId, status, date, from, to, driverId, customerType, page, limit }],
     queryFn: async () => {
       const response = await client.api.orders.$get({
         query: {
@@ -36,6 +40,7 @@ export const useGetOrders = (props?: UseGetOrdersProps) => {
           from,
           to,
           driverId,
+          customerType,
           page: page.toString(),
           limit: limit.toString(),
         },

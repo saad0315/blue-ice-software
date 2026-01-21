@@ -1,4 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { format } from 'date-fns';
+
 
 import { client } from '@/lib/hono';
 
@@ -21,6 +23,7 @@ export const useGetDriverStats = ({ driverId, startDate, endDate }: UseGetDriver
         query: {
           startDate: startDate ?? undefined,
           endDate: endDate ?? undefined,
+          date: format(new Date(), 'yyyy-MM-dd'),
         },
       });
 
@@ -32,5 +35,6 @@ export const useGetDriverStats = ({ driverId, startDate, endDate }: UseGetDriver
       return data.data;
     },
     enabled: !!driverId,
+    placeholderData: keepPreviousData,
   });
 };

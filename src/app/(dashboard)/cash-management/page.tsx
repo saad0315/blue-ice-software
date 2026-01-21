@@ -19,8 +19,8 @@ import { useGetCashStats } from '@/features/cash-management/api/use-get-cash-sta
 function CashManagementContent() {
   const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<CashHandoverStatus | undefined>();
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
 
@@ -125,18 +125,52 @@ function CashManagementContent() {
               </CardContent>
             </Card>
 
-            <Card className="border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-950/20">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-red-900 dark:text-red-100">Unresolved Discrepancy</CardTitle>
-                <TrendingUp className="h-4 w-4 text-red-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-                  PKR {stats?.handovers.totalDiscrepancy?.toFixed(2) || '0'}
-                </div>
-                <p className="text-xs text-muted-foreground">Unresolved discrepancies from pending handovers</p>
-              </CardContent>
-            </Card>
+            {(() => {
+              const discrepancy = stats?.handovers.totalDiscrepancy || 0;
+              const isShortage = discrepancy > 0;
+              const isExcess = discrepancy < 0;
+
+              let borderColor = 'border-slate-200 dark:border-slate-800';
+              let bgColor = 'bg-slate-50/50 dark:bg-slate-950/20';
+              let textColor = 'text-slate-900 dark:text-slate-100';
+              let iconColor = 'text-slate-600';
+
+              if (isShortage) {
+                borderColor = 'border-red-200 dark:border-red-900';
+                bgColor = 'bg-red-50/50 dark:bg-red-950/20';
+                textColor = 'text-red-600 dark:text-red-400';
+                iconColor = 'text-red-600';
+              } else if (isExcess) {
+                borderColor = 'border-blue-200 dark:border-blue-900';
+                bgColor = 'bg-blue-50/50 dark:bg-blue-950/20';
+                textColor = 'text-blue-600 dark:text-blue-400';
+                iconColor = 'text-blue-600';
+              } else {
+                borderColor = 'border-green-200 dark:border-green-900';
+                bgColor = 'bg-green-50/50 dark:bg-green-950/20';
+                textColor = 'text-green-600 dark:text-green-400';
+                iconColor = 'text-green-600';
+              }
+
+              return (
+                <Card className={`${borderColor} ${bgColor}`}>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className={`text-sm font-medium ${textColor.replace('600', '900').replace('400', '100')}`}>
+                      Total Discrepancy
+                    </CardTitle>
+                    <TrendingUp className={`h-4 w-4 ${iconColor}`} />
+                  </CardHeader>
+                  <CardContent>
+                    <div className={`text-2xl font-bold ${textColor}`}>
+                      PKR {discrepancy.toFixed(2)}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {isShortage ? 'Shortage (Driver owes)' : isExcess ? 'Excess (Company owes)' : 'No discrepancy'}
+                    </p>
+                  </CardContent>
+                </Card>
+              );
+            })()}
           </div>
 
           {/* Expense Stats */}
@@ -186,6 +220,56 @@ function CashManagementContent() {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="mb-6 flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const today = new Date();
+                setStartDate(format(today, 'yyyy-MM-dd'));
+                setEndDate(format(today, 'yyyy-MM-dd'));
+              }}
+            >
+              Today
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const today = new Date();
+                const firstDay = new Date(today.setDate(today.getDate() - today.getDay() + 1)); // Monday
+                const lastDay = new Date(today.setDate(today.getDate() - today.getDay() + 7)); // Sunday
+                setStartDate(format(firstDay, 'yyyy-MM-dd'));
+                setEndDate(format(lastDay, 'yyyy-MM-dd'));
+              }}
+            >
+              This Week
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const today = new Date();
+                const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+                const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                setStartDate(format(firstDay, 'yyyy-MM-dd'));
+                setEndDate(format(lastDay, 'yyyy-MM-dd'));
+              }}
+            >
+              This Month
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setStartDate('');
+                setEndDate('');
+              }}
+            >
+              All Time
+            </Button>
+          </div>
+
           <div className="grid gap-4 md:grid-cols-4">
             <div className="space-y-2">
               <Label>Status</Label>
