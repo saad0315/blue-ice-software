@@ -1,7 +1,7 @@
 'use client';
 
 import { endOfMonth, endOfWeek, format, startOfMonth, startOfWeek, subDays } from 'date-fns';
-import { ArrowLeft, Calendar, DollarSign, Mail, MapPin, Package, Phone, TrendingUp, Truck } from 'lucide-react';
+import { ArrowLeft, Calendar, DollarSign, Loader2, Mail, MapPin, Package, Phone, TrendingUp, Truck } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { Suspense, useState } from 'react';
 
@@ -62,9 +62,9 @@ function DriverDetailContent() {
   };
 
   const { startDate, endDate } = getDateRange();
-  const { data: stats, isLoading, error } = useGetDriverStats({ driverId, startDate, endDate });
+  const { data: stats, isLoading, error, isFetching: isStatsFetching } = useGetDriverStats({ driverId, startDate, endDate });
 
-  const { data: deliveriesData, isLoading: isDeliveriesLoading } = useGetDriverDeliveries({
+  const { data: deliveriesData, isLoading: isDeliveriesLoading, isFetching: isDeliveriesFetching } = useGetDriverDeliveries({
     driverId,
     startDate,
     endDate,
@@ -72,6 +72,8 @@ function DriverDetailContent() {
     limit: ordersLimit,
     status: statusFilter,
   });
+
+  const isRefreshing = isStatsFetching || isDeliveriesFetching;
 
   if (isLoading) {
     return (
@@ -98,7 +100,7 @@ function DriverDetailContent() {
     );
   }
 
-  const { driver, summary, financial, bottles, today, allTime, recentOrders } = stats;
+  const { driver, summary, financial, bottles, today, allTime, recentOrders, expenses } = stats;
 
   return (
     <div className="flex flex-col gap-6">
@@ -109,7 +111,10 @@ function DriverDetailContent() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">{driver.user.name}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-3xl font-bold tracking-tight">{driver.user.name}</h1>
+              {isRefreshing && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
+            </div>
             <p className="text-muted-foreground">Driver Performance Dashboard</p>
           </div>
         </div>
@@ -119,379 +124,419 @@ function DriverDetailContent() {
         </div>
       </div>
 
-      {/* Driver Info Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Driver Information</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <div className="flex items-center gap-3">
-              <Phone className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <p className="text-sm text-muted-foreground">Phone</p>
-                <p className="font-medium">{driver.user.phoneNumber}</p>
-              </div>
-            </div>
-            {driver.user.email && (
+      <div className={`flex flex-col gap-6 transition-opacity duration-200 ${isRefreshing ? 'opacity-70' : 'opacity-100'}`}>
+        {/* Driver Info Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Driver Information</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <div className="flex items-center gap-3">
-                <Mail className="h-5 w-5 text-muted-foreground" />
+                <Phone className="h-5 w-5 text-muted-foreground" />
                 <div>
-                  <p className="text-sm text-muted-foreground">Email</p>
-                  <p className="font-medium">{driver.user.email}</p>
+                  <p className="text-sm text-muted-foreground">Phone</p>
+                  <p className="font-medium">{driver.user.phoneNumber}</p>
                 </div>
               </div>
-            )}
-            {driver.vehicleNo && (
-              <div className="flex items-center gap-3">
-                <Truck className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Vehicle No</p>
-                  <p className="font-medium">{driver.vehicleNo}</p>
+              {driver.user.email && (
+                <div className="flex items-center gap-3">
+                  <Mail className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Email</p>
+                    <p className="font-medium">{driver.user.email}</p>
+                  </div>
+                </div>
+              )}
+              {driver.vehicleNo && (
+                <div className="flex items-center gap-3">
+                  <Truck className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Vehicle No</p>
+                    <p className="font-medium">{driver.vehicleNo}</p>
+                  </div>
+                </div>
+              )}
+              {driver.licenseNo && (
+                <div className="flex items-center gap-3">
+                  <Calendar className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">License No</p>
+                    <p className="font-medium">{driver.licenseNo}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Date Range Filter */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Performance Period</CardTitle>
+            <CardDescription>Select a date range to view statistics</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              <Button variant={dateRange === 'today' ? 'primary' : 'outline'} size="sm" onClick={() => setDateRange('today')}>
+                Today
+              </Button>
+              <Button variant={dateRange === 'week' ? 'primary' : 'outline'} size="sm" onClick={() => setDateRange('week')}>
+                This Week
+              </Button>
+              <Button variant={dateRange === 'month' ? 'primary' : 'outline'} size="sm" onClick={() => setDateRange('month')}>
+                This Month
+              </Button>
+              <div className="ml-4 flex items-center gap-2">
+                <input
+                  type="date"
+                  className="rounded-md border px-3 py-1.5 text-sm"
+                  value={customStart}
+                  onChange={(e) => {
+                    setCustomStart(e.target.value);
+                    setDateRange('custom');
+                  }}
+                />
+                <span className="text-sm text-muted-foreground">to</span>
+                <input
+                  type="date"
+                  className="rounded-md border px-3 py-1.5 text-sm"
+                  value={customEnd}
+                  onChange={(e) => {
+                    setCustomEnd(e.target.value);
+                    setDateRange('custom');
+                  }}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Today's Quick Stats */}
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card className="border-blue-200 bg-blue-50/50 dark:border-blue-900 dark:bg-blue-950/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-blue-900 dark:text-blue-100">Today's Deliveries</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">{today.deliveries}</div>
+              <p className="mt-1 text-xs text-muted-foreground">Completed orders today</p>
+            </CardContent>
+          </Card>
+          <Card className="border-green-200 bg-green-50/50 dark:border-green-900 dark:bg-green-950/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-green-900 dark:text-green-100">Today's Cash</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-green-600 dark:text-green-400">PKR {today.cashCollected}</div>
+              <p className="mt-1 text-xs text-muted-foreground">Cash collected today</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Period Statistics */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
+              <Package className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{summary.totalOrders}</div>
+              <div className="mt-2 space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-green-500" />
+                    Completed
+                  </span>
+                  <span className="font-medium">{summary.completedOrders}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-blue-500" />
+                    Pending/In Progress
+                  </span>
+                  <span className="font-medium">{summary.pendingOrders}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-red-500" />
+                    Cancelled
+                  </span>
+                  <span className="font-medium">{summary.cancelledOrders}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-yellow-500" />
+                    Rescheduled
+                  </span>
+                  <span className="font-medium">{summary.rescheduledOrders}</span>
                 </div>
               </div>
-            )}
-            {driver.licenseNo && (
-              <div className="flex items-center gap-3">
-                <Calendar className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <p className="text-sm text-muted-foreground">License No</p>
-                  <p className="font-medium">{driver.licenseNo}</p>
+              <div className="mt-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
+                    <div className="h-full bg-primary" style={{ width: `${summary.completionRate}%` }} />
+                  </div>
+                  <span className="text-xs font-medium">{summary.completionRate}%</span>
                 </div>
               </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
 
-      {/* Date Range Filter */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Performance Period</CardTitle>
-          <CardDescription>Select a date range to view statistics</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2">
-            <Button variant={dateRange === 'today' ? 'primary' : 'outline'} size="sm" onClick={() => setDateRange('today')}>
-              Today
-            </Button>
-            <Button variant={dateRange === 'week' ? 'primary' : 'outline'} size="sm" onClick={() => setDateRange('week')}>
-              This Week
-            </Button>
-            <Button variant={dateRange === 'month' ? 'primary' : 'outline'} size="sm" onClick={() => setDateRange('month')}>
-              This Month
-            </Button>
-            <div className="ml-4 flex items-center gap-2">
-              <input
-                type="date"
-                className="rounded-md border px-3 py-1.5 text-sm"
-                value={customStart}
-                onChange={(e) => {
-                  setCustomStart(e.target.value);
-                  setDateRange('custom');
-                }}
-              />
-              <span className="text-sm text-muted-foreground">to</span>
-              <input
-                type="date"
-                className="rounded-md border px-3 py-1.5 text-sm"
-                value={customEnd}
-                onChange={(e) => {
-                  setCustomEnd(e.target.value);
-                  setDateRange('custom');
-                }}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Cash Collected</CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">PKR {financial.totalCashCollected}</div>
+              <p className="text-xs text-muted-foreground">Avg: PKR {parseFloat(financial.averageCashPerDelivery).toFixed(0)} per delivery</p>
+              <div className="mt-3 border-t pt-2">
+                <p className="text-xs font-medium text-muted-foreground">Total Revenue</p>
+                <p className="text-lg font-bold text-blue-600">PKR {financial.totalRevenue}</p>
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* Today's Quick Stats */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card className="border-blue-200 bg-blue-50/50 dark:border-blue-900 dark:bg-blue-950/20">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-blue-900 dark:text-blue-100">Today's Deliveries</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">{today.deliveries}</div>
-            <p className="mt-1 text-xs text-muted-foreground">Completed orders today</p>
-          </CardContent>
-        </Card>
-        <Card className="border-green-200 bg-green-50/50 dark:border-green-900 dark:bg-green-950/20">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-green-900 dark:text-green-100">Today's Cash</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-green-600 dark:text-green-400">PKR {today.cashCollected}</div>
-            <p className="mt-1 text-xs text-muted-foreground">Cash collected today</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Period Statistics */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{summary.totalOrders}</div>
-            <div className="mt-2 space-y-1">
-              <div className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-green-500" />
-                  Completed
-                </span>
-                <span className="font-medium">{summary.completedOrders}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-blue-500" />
-                  Pending/In Progress
-                </span>
-                <span className="font-medium">{summary.pendingOrders}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-red-500" />
-                  Cancelled
-                </span>
-                <span className="font-medium">{summary.cancelledOrders}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-yellow-500" />
-                  Rescheduled
-                </span>
-                <span className="font-medium">{summary.rescheduledOrders}</span>
-              </div>
-            </div>
-            <div className="mt-3">
-              <div className="flex items-center gap-2">
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
-                  <div className="h-full bg-primary" style={{ width: `${summary.completionRate}%` }} />
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Bottles Exchange</CardTitle>
+              <Package className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Filled Given</span>
+                  <span className="text-xl font-bold text-green-600">{bottles.totalFilledGiven}</span>
                 </div>
-                <span className="text-xs font-medium">{summary.completionRate}%</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Empty Taken</span>
+                  <span className="text-xl font-bold text-blue-600">{bottles.totalEmptyTaken}</span>
+                </div>
+                <div className="flex items-center justify-between border-t pt-2 text-xs">
+                  <span className="text-muted-foreground">Exchange Rate</span>
+                  <span className="font-medium">{bottles.exchangeRate}%</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Expenses</CardTitle>
+              <DollarSign className="h-4 w-4 text-red-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">PKR {expenses?.total || '0'}</div>
+              <div className="mt-2 space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-green-500" />
+                    Approved
+                  </span>
+                  <span className="font-medium">PKR {expenses?.approved || '0'}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-yellow-500" />
+                    Pending
+                  </span>
+                  <span className="font-medium">PKR {expenses?.pending || '0'}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-red-500" />
+                    Rejected
+                  </span>
+                  <span className="font-medium">PKR {expenses?.rejected || '0'}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* All-Time Statistics */}
+        <Card>
+          <CardHeader>
+            <CardTitle>All-Time Performance</CardTitle>
+            <CardDescription>Lifetime statistics for this driver</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="flex flex-col gap-1">
+                <p className="text-sm text-muted-foreground">Total Deliveries</p>
+                <p className="text-2xl font-bold">{allTime.totalDeliveries}</p>
+              </div>
+              <div className="flex flex-col gap-1">
+                <p className="text-sm text-muted-foreground">Total Cash Collected</p>
+                <p className="text-2xl font-bold">PKR {allTime.totalCashCollected}</p>
+              </div>
+              <div className="flex flex-col gap-1">
+                <p className="text-sm text-muted-foreground">Total Revenue</p>
+                <p className="text-2xl font-bold">PKR {allTime.totalRevenue}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
+        {/* Recent Orders */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Cash Collected</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Orders</CardTitle>
+              <CardDescription>
+                {deliveriesData?.pagination.total || 0} {statusFilter === 'ALL' ? 'total' : statusFilter.toLowerCase()} orders
+              </CardDescription>
+            </div>
+            <Select
+              value={statusFilter}
+              onValueChange={(val) => {
+                setStatusFilter(val as DeliveryStatusFilter);
+                setOrdersPage(1);
+              }}
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Orders</SelectItem>
+                <SelectItem value="COMPLETED">Completed</SelectItem>
+                <SelectItem value="SCHEDULED">Scheduled</SelectItem>
+                <SelectItem value="PENDING">Pending</SelectItem>
+                <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                <SelectItem value="RESCHEDULED">Rescheduled</SelectItem>
+              </SelectContent>
+            </Select>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">PKR {financial.totalCashCollected}</div>
-            <p className="text-xs text-muted-foreground">Avg: PKR {parseFloat(financial.averageCashPerDelivery).toFixed(0)} per delivery</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Filled Bottles Given</CardTitle>
-            <Package className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{bottles.totalFilledGiven}</div>
-            <p className="text-xs text-muted-foreground">Bottles delivered to customers</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Empty Bottles Taken</CardTitle>
-            <Package className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{bottles.totalEmptyTaken}</div>
-            <p className="text-xs text-muted-foreground">Exchange rate: {bottles.exchangeRate}%</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* All-Time Statistics */}
-      <Card>
-        <CardHeader>
-          <CardTitle>All-Time Performance</CardTitle>
-          <CardDescription>Lifetime statistics for this driver</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="flex flex-col gap-1">
-              <p className="text-sm text-muted-foreground">Total Deliveries</p>
-              <p className="text-2xl font-bold">{allTime.totalDeliveries}</p>
-            </div>
-            <div className="flex flex-col gap-1">
-              <p className="text-sm text-muted-foreground">Total Cash Collected</p>
-              <p className="text-2xl font-bold">PKR {allTime.totalCashCollected}</p>
-            </div>
-            <div className="flex flex-col gap-1">
-              <p className="text-sm text-muted-foreground">Total Revenue</p>
-              <p className="text-2xl font-bold">PKR {allTime.totalRevenue}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Recent Orders */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Orders</CardTitle>
-            <CardDescription>
-              {deliveriesData?.pagination.total || 0} {statusFilter === 'ALL' ? 'total' : statusFilter.toLowerCase()} orders
-            </CardDescription>
-          </div>
-          <Select
-            value={statusFilter}
-            onValueChange={(val) => {
-              setStatusFilter(val as DeliveryStatusFilter);
-              setOrdersPage(1);
-            }}
-          >
-            <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">All Orders</SelectItem>
-              <SelectItem value="COMPLETED">Completed</SelectItem>
-              <SelectItem value="SCHEDULED">Scheduled</SelectItem>
-              <SelectItem value="PENDING">Pending</SelectItem>
-              <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-              <SelectItem value="CANCELLED">Cancelled</SelectItem>
-              <SelectItem value="RESCHEDULED">Rescheduled</SelectItem>
-            </SelectContent>
-          </Select>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {isDeliveriesLoading ? (
-              <div className="space-y-4">
-                {[...Array(3)].map((_, i) => (
-                  <Skeleton key={i} className="h-24" />
-                ))}
-              </div>
-            ) : !deliveriesData?.deliveries.length ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                No {statusFilter === 'ALL' ? '' : statusFilter.toLowerCase()} orders in this period
-              </p>
-            ) : (
-              <>
-                {deliveriesData.deliveries.map((order: any) => (
-                  <div key={order.id} className="rounded-lg border p-4">
-                    <div className="mb-2 flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium">Order #{order.readableId}</p>
-                          <Badge
-                            variant={
-                              order.status === 'COMPLETED'
-                                ? 'default'
-                                : order.status === 'CANCELLED'
-                                  ? 'destructive'
+            <div className="space-y-4">
+              {isDeliveriesLoading ? (
+                <div className="space-y-4">
+                  {[...Array(3)].map((_, i) => (
+                    <Skeleton key={i} className="h-24" />
+                  ))}
+                </div>
+              ) : !deliveriesData?.deliveries.length ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  No {statusFilter === 'ALL' ? '' : statusFilter.toLowerCase()} orders in this period
+                </p>
+              ) : (
+                <>
+                  {deliveriesData.deliveries.map((order: any) => (
+                    <div key={order.id} className="rounded-lg border p-4">
+                      <div className="mb-2 flex items-start justify-between">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">Order #{order.readableId}</p>
+                            <Badge
+                              variant={
+                                order.status === 'COMPLETED'
+                                  ? 'default'
+                                  : order.status === 'CANCELLED'
+                                    ? 'destructive'
+                                    : order.status === 'RESCHEDULED'
+                                      ? 'secondary'
+                                      : order.status === 'IN_PROGRESS'
+                                        ? 'outline'
+                                        : 'secondary'
+                              }
+                              className={
+                                order.status === 'COMPLETED'
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                                   : order.status === 'RESCHEDULED'
-                                    ? 'secondary'
+                                    ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
                                     : order.status === 'IN_PROGRESS'
-                                      ? 'outline'
-                                      : 'secondary'
-                            }
-                            className={
-                              order.status === 'COMPLETED'
-                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                : order.status === 'RESCHEDULED'
-                                  ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                                  : order.status === 'IN_PROGRESS'
-                                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                                    : ''
-                            }
-                          >
-                            {order.status.replace('_', ' ')}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground">{order.customerName}</p>
-                        <p className="text-xs text-muted-foreground">{order.customerPhone}</p>
-                        {order.cancellationReason && (
-                          <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                            Reason: {order.cancellationReason.replace(/_/g, ' ')}
-                          </p>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        {order.status === 'COMPLETED' && <p className="font-medium">PKR {order.cashCollected}</p>}
-                        <p className="text-xs text-muted-foreground">
-                          {order.status === 'COMPLETED' && order.deliveredAt
-                            ? format(new Date(order.deliveredAt), 'MMM dd, yyyy HH:mm')
-                            : format(new Date(order.scheduledDate), 'MMM dd, yyyy')}
-                        </p>
-                      </div>
-                    </div>
-                    <Separator className="my-2" />
-                    <div className="space-y-1">
-                      {order.items.map((item: any, idx: number) => (
-                        <div key={idx} className="flex justify-between text-sm">
-                          <span>
-                            {item.quantity}x {item.productName}
-                          </span>
-                          {order.status === 'COMPLETED' && (
-                            <span className="text-muted-foreground">
-                              Filled: {item.filledGiven} • Empty: {item.emptyTaken}
-                            </span>
+                                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                                      : ''
+                              }
+                            >
+                              {order.status.replace('_', ' ')}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">{order.customerName}</p>
+                          <p className="text-xs text-muted-foreground">{order.customerPhone}</p>
+                          {order.cancellationReason && (
+                            <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                              Reason: {order.cancellationReason.replace(/_/g, ' ')}
+                            </p>
                           )}
                         </div>
-                      ))}
+                        <div className="text-right">
+                          {order.status === 'COMPLETED' && <p className="font-medium">PKR {order.cashCollected}</p>}
+                          <p className="text-xs text-muted-foreground">
+                            {order.status === 'COMPLETED' && order.deliveredAt
+                              ? format(new Date(order.deliveredAt), 'MMM dd, yyyy HH:mm')
+                              : format(new Date(order.scheduledDate), 'MMM dd, yyyy')}
+                          </p>
+                        </div>
+                      </div>
+                      <Separator className="my-2" />
+                      <div className="space-y-1">
+                        {order.items.map((item: any, idx: number) => (
+                          <div key={idx} className="flex justify-between text-sm">
+                            <span>
+                              {item.quantity}x {item.productName}
+                            </span>
+                            {order.status === 'COMPLETED' && (
+                              <span className="text-muted-foreground">
+                                Filled: {item.filledGiven} • Empty: {item.emptyTaken}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
 
-                {/* Pagination */}
-                <div className="flex items-center justify-end space-x-2 pt-4">
-                  <div className="flex-1 text-sm text-muted-foreground">
-                    Showing {(ordersPage - 1) * ordersLimit + 1} to {Math.min(ordersPage * ordersLimit, deliveriesData.pagination.total)} of{' '}
-                    {deliveriesData.pagination.total} orders
-                    <div className="ml-4 inline-block">
-                      <Select
-                        value={ordersLimit.toString()}
-                        onValueChange={(val) => {
-                          setOrdersLimit(parseInt(val));
-                          setOrdersPage(1);
-                        }}
+                  {/* Pagination */}
+                  <div className="flex items-center justify-end space-x-2 pt-4">
+                    <div className="flex-1 text-sm text-muted-foreground">
+                      Showing {(ordersPage - 1) * ordersLimit + 1} to {Math.min(ordersPage * ordersLimit, deliveriesData.pagination.total)} of{' '}
+                      {deliveriesData.pagination.total} orders
+                      <div className="ml-4 inline-block">
+                        <Select
+                          value={ordersLimit.toString()}
+                          onValueChange={(val) => {
+                            setOrdersLimit(parseInt(val));
+                            setOrdersPage(1);
+                          }}
+                        >
+                          <SelectTrigger className="h-8 w-[130px]">
+                            <SelectValue placeholder="Per page" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="10">10 per page</SelectItem>
+                            <SelectItem value="20">20 per page</SelectItem>
+                            <SelectItem value="50">50 per page</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm text-muted-foreground">
+                        Page {ordersPage} of {deliveriesData.pagination.totalPages}
+                      </span>
+                      <Button variant="outline" size="sm" onClick={() => setOrdersPage(ordersPage - 1)} disabled={ordersPage === 1}>
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setOrdersPage(ordersPage + 1)}
+                        disabled={ordersPage === deliveriesData.pagination.totalPages}
                       >
-                        <SelectTrigger className="h-8 w-[130px]">
-                          <SelectValue placeholder="Per page" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="10">10 per page</SelectItem>
-                          <SelectItem value="20">20 per page</SelectItem>
-                          <SelectItem value="50">50 per page</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        Next
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm text-muted-foreground">
-                      Page {ordersPage} of {deliveriesData.pagination.totalPages}
-                    </span>
-                    <Button variant="outline" size="sm" onClick={() => setOrdersPage(ordersPage - 1)} disabled={ordersPage === 1}>
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setOrdersPage(ordersPage + 1)}
-                      disabled={ordersPage === deliveriesData.pagination.totalPages}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+                </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

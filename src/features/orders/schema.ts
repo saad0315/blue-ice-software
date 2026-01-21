@@ -1,4 +1,4 @@
-import { OrderStatus, PaymentMethod } from '@prisma/client';
+import { CustomerType, OrderStatus, PaymentMethod } from '@prisma/client';
 import { z } from 'zod';
 
 export const createOrderSchema = z.object({
@@ -54,6 +54,7 @@ export const bulkAssignSchema = z.object({
 export const generateOrdersSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
   routeId: z.string().uuid().optional(),
+  customerType: z.nativeEnum(CustomerType).optional(),
 });
 
 export const getOrdersQuerySchema = z.object({
@@ -61,6 +62,7 @@ export const getOrdersQuerySchema = z.object({
   status: z.nativeEnum(OrderStatus).optional(),
   customerId: z.string().uuid().optional(),
   driverId: z.string().optional(), // Allow 'unassigned' or UUID
+  customerType: z.nativeEnum(CustomerType).optional(), // Filter by customer type
   date: z.string().optional(), // Filter by specific date
   from: z.string().optional(),
   to: z.string().optional(),

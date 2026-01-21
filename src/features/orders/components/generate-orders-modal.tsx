@@ -1,5 +1,7 @@
 'use client';
 
+import { CustomerType } from '@prisma/client';
+
 import { format } from 'date-fns';
 import { CalendarIcon, CheckCircle2, Loader2, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -10,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useGenerateOrdersStream } from '@/features/orders/api/use-generate-orders';
+import { useGenerateOrdersPreview, useGenerateOrdersStream } from '@/features/orders/api/use-generate-orders';
 import { useGetRoutes } from '@/features/routes/api/use-get-routes';
 import { cn } from '@/lib/utils';
 
@@ -21,7 +23,15 @@ interface GenerateOrdersModalProps {
 
 export const GenerateOrdersModal = ({ open, onOpenChange }: GenerateOrdersModalProps) => {
   const [date, setDate] = useState<Date | undefined>(new Date());
+
   const [routeId, setRouteId] = useState<string>('all');
+  const [customerType, setCustomerType] = useState<CustomerType | 'all'>('all');
+
+  const previewQuery = useGenerateOrdersPreview({
+    date: date ? format(date, 'yyyy-MM-dd') : '',
+    routeId: routeId === 'all' ? undefined : routeId,
+    customerType: customerType === 'all' ? undefined : customerType,
+  });
 
   const { generate, progress, isGenerating, reset } = useGenerateOrdersStream();
   const { data: routesData, isLoading: isLoadingRoutes } = useGetRoutes();
@@ -40,6 +50,7 @@ export const GenerateOrdersModal = ({ open, onOpenChange }: GenerateOrdersModalP
     generate({
       date: format(date, 'yyyy-MM-dd'),
       routeId: routeId === 'all' ? undefined : routeId,
+      customerType: customerType === 'all' ? undefined : customerType,
     });
   };
 
@@ -101,6 +112,46 @@ export const GenerateOrdersModal = ({ open, onOpenChange }: GenerateOrdersModalP
                 </Select>
                 <p className="text-[0.8rem] text-muted-foreground">Leave as "All Routes" to generate for everyone.</p>
               </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Customer Type (Optional)</label>
+                <Select value={customerType} onValueChange={(val) => setCustomerType(val as CustomerType | 'all')}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    {Object.values(CustomerType).map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {date && (
+                <div className="rounded-md bg-muted p-4">
+                  <p className="text-sm font-medium text-muted-foreground">Preview</p>
+                  {previewQuery.isLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <span>Calculating orders...</span>
+                    </div>
+                  ) : previewQuery.isError ? (
+                    <p className="text-sm text-red-500">Failed to load preview</p>
+                  ) : (
+                    <p className="text-xl font-bold">
+                      {previewQuery.data?.count ?? 0} <span className="text-sm font-normal text-muted-foreground">orders to be created</span>
+                    </p>
+                  )}
+                  {previewQuery.data?.insufficientStock && previewQuery.data.insufficientStock.length > 0 && (
+                    <p className="mt-2 text-xs text-red-500">
+                      Warning: Insufficient stock for {previewQuery.data.insufficientStock.length} products.
+                    </p>
+                  )}
+                </div>
+              )}
             </>
           ) : (
             <div className="space-y-4">

@@ -11,9 +11,9 @@ import { db } from '@/lib/db';
  */
 export async function calculateExpectedCash(driverId: string, date: Date) {
   const startOfDay = new Date(date);
-  startOfDay.setHours(0, 0, 0, 0);
+  startOfDay.setUTCHours(0, 0, 0, 0);
   const endOfDay = new Date(date);
-  endOfDay.setHours(23, 59, 59, 999);
+  endOfDay.setUTCHours(23, 59, 59, 999);
 
   const result = await db.order.aggregate({
     where: {
@@ -74,13 +74,13 @@ export async function getPendingCashDates(driverId: string): Promise<Date[]> {
  */
 export async function getPendingCashFromPreviousDays(driverId: string) {
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  today.setUTCHours(0, 0, 0, 0);
 
   // Get all dates with unhanded cash before today
   const pendingDates = await getPendingCashDates(driverId);
   const previousDates = pendingDates.filter((date) => {
     const dateOnly = new Date(date);
-    dateOnly.setHours(0, 0, 0, 0);
+    dateOnly.setUTCHours(0, 0, 0, 0);
     return dateOnly < today;
   });
 
@@ -97,9 +97,9 @@ export async function getPendingCashFromPreviousDays(driverId: string) {
   const pendingDays = await Promise.all(
     previousDates.map(async (date) => {
       const startOfDay = new Date(date);
-      startOfDay.setHours(0, 0, 0, 0);
+      startOfDay.setUTCHours(0, 0, 0, 0);
       const endOfDay = new Date(date);
-      endOfDay.setHours(23, 59, 59, 999);
+      endOfDay.setUTCHours(23, 59, 59, 999);
 
       const [cashData, expenseData, handover] = await Promise.all([
         // Cash collected on this date
@@ -176,9 +176,9 @@ export async function getPendingCashFromPreviousDays(driverId: string) {
  */
 export async function getDriverDaySummary(driverId: string, date: Date) {
   const startOfDay = new Date(date);
-  startOfDay.setHours(0, 0, 0, 0);
+  startOfDay.setUTCHours(0, 0, 0, 0);
   const endOfDay = new Date(date);
-  endOfDay.setHours(23, 59, 59, 999);
+  endOfDay.setUTCHours(23, 59, 59, 999);
 
   // Normalize date for handover lookup
   const normalizedDate = new Date(date.toISOString().split('T')[0]);
@@ -322,14 +322,14 @@ export async function getDriverDaySummary(driverId: string, date: Date) {
     // Today's handover status - CRITICAL for UI to show correct state
     todayHandover: todayHandover
       ? {
-          id: todayHandover.id,
-          status: todayHandover.status,
-          actualCash: todayHandover.actualCash.toString(),
-          expectedCash: todayHandover.expectedCash.toString(),
-          discrepancy: todayHandover.discrepancy.toString(),
-          submittedAt: todayHandover.submittedAt,
-          verifiedAt: todayHandover.verifiedAt,
-        }
+        id: todayHandover.id,
+        status: todayHandover.status,
+        actualCash: todayHandover.actualCash.toString(),
+        expectedCash: todayHandover.expectedCash.toString(),
+        discrepancy: todayHandover.discrepancy.toString(),
+        submittedAt: todayHandover.submittedAt,
+        verifiedAt: todayHandover.verifiedAt,
+      }
       : null,
     isHandoverSubmitted,
     isHandoverVerified,
@@ -529,9 +529,9 @@ export async function getCashHandover(id: string) {
 
   // Calculate potential "Hidden Expenses" (Pending) for this date range
   const startOfDay = new Date(handover.date);
-  startOfDay.setHours(0, 0, 0, 0);
+  startOfDay.setUTCHours(0, 0, 0, 0);
   const endOfDay = new Date(handover.date);
-  endOfDay.setHours(23, 59, 59, 999);
+  endOfDay.setUTCHours(23, 59, 59, 999);
 
   const pendingExpenses = await db.expense.aggregate({
     where: {
@@ -597,7 +597,7 @@ export async function verifyCashHandover(data: {
     // However, we need to recalculate in case expenses were added/approved AFTER submission.
 
     const handoverDate = new Date(handover.date);
-    handoverDate.setHours(0, 0, 0, 0);
+    handoverDate.setUTCHours(0, 0, 0, 0);
 
     // Get all dates with pending cash (no verified handover) up to and including handover date
     const ordersWithCash = await tx.order.findMany({
@@ -646,9 +646,9 @@ export async function verifyCashHandover(data: {
     for (const dateStr of pendingDatesArray) {
       const date = new Date(dateStr);
       const startOfDay = new Date(date);
-      startOfDay.setHours(0, 0, 0, 0);
+      startOfDay.setUTCHours(0, 0, 0, 0);
       const endOfDay = new Date(date);
-      endOfDay.setHours(23, 59, 59, 999);
+      endOfDay.setUTCHours(23, 59, 59, 999);
 
       const dayExpenses = await tx.expense.aggregate({
         where: {
@@ -768,9 +768,9 @@ export async function verifyCashHandover(data: {
         } else {
           // Calculate the day's expected cash for record keeping
           const dayStartOfDay = new Date(previousDate);
-          dayStartOfDay.setHours(0, 0, 0, 0);
+          dayStartOfDay.setUTCHours(0, 0, 0, 0);
           const dayEndOfDay = new Date(previousDate);
-          dayEndOfDay.setHours(23, 59, 59, 999);
+          dayEndOfDay.setUTCHours(23, 59, 59, 999);
 
           const dayCashOrders = await tx.order.aggregate({
             where: {
@@ -828,10 +828,10 @@ export async function getCashDashboardStats(options?: { startDate?: Date; endDat
 
   // If no dates, default to today. If one date, use it for both start and end.
   const startOfRange = startDate ? new Date(startDate) : new Date();
-  startOfRange.setHours(0, 0, 0, 0);
+  startOfRange.setUTCHours(0, 0, 0, 0);
 
   const endOfRange = endDate ? new Date(endDate) : new Date(startOfRange);
-  endOfRange.setHours(23, 59, 59, 999);
+  endOfRange.setUTCHours(23, 59, 59, 999);
 
   const [handoverStats, todayCashOrders, pendingHandovers, discrepancies, expenseStats] = await Promise.all([
     // Handover status breakdown
@@ -853,7 +853,7 @@ export async function getCashDashboardStats(options?: { startDate?: Date; endDat
       where: {
         // This is tricky. Orders are on scheduledDate, but handover is on `date`.
         // We should probably show cash collected within the date range, regardless of handover date.
-        completedAt: { gte: startOfRange, lte: endOfRange },
+        scheduledDate: { gte: startOfRange, lte: endOfRange },
         status: OrderStatus.COMPLETED,
         paymentMethod: PaymentMethod.CASH,
       },
@@ -914,7 +914,11 @@ export async function getCashDashboardStats(options?: { startDate?: Date; endDat
       verifiedAmount: verified?._sum.actualCash?.toString() || '0',
       rejected: rejected?._count.id || 0,
       // Only show unresolved (pending) discrepancies - verified ones are already settled
-      totalDiscrepancy: pendingDiscrepancy,
+      // UPDATE: User wants to see ALL discrepancies for the day (e.g. shortages from rejected expenses)
+      totalDiscrepancy: handoverStats.reduce(
+        (sum, s) => sum + (s._sum.discrepancy ? parseFloat(s._sum.discrepancy.toString()) : 0),
+        0
+      ),
     },
     expenses: {
       pending: pendingExpenses?._count.id || 0,
@@ -973,9 +977,9 @@ export async function getDriverFinancialHistory(
   const start = startDate || new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   const startOfRange = new Date(start);
-  startOfRange.setHours(0, 0, 0, 0);
+  startOfRange.setUTCHours(0, 0, 0, 0);
   const endOfRange = new Date(end);
-  endOfRange.setHours(23, 59, 59, 999);
+  endOfRange.setUTCHours(23, 59, 59, 999);
 
   const skip = (page - 1) * limit;
 
@@ -1165,7 +1169,7 @@ export async function getDriverFinancialHistory(
 export async function getCashCollectionTrends(days = 30) {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
-  startDate.setHours(0, 0, 0, 0);
+  startDate.setUTCHours(0, 0, 0, 0);
 
   const trends = await db.cashHandover.groupBy({
     by: ['date'],

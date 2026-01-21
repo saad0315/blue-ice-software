@@ -5,9 +5,9 @@ import { getPendingCashFromPreviousDays } from '@/features/cash-management/queri
 
 export async function getDriverStats(driverId: string, date: Date) {
   const startOfDay = new Date(date);
-  startOfDay.setHours(0, 0, 0, 0);
+  startOfDay.setUTCHours(0, 0, 0, 0);
   const endOfDay = new Date(date);
-  endOfDay.setHours(23, 59, 59, 999);
+  endOfDay.setUTCHours(23, 59, 59, 999);
 
   const completedOrdersWhere = {
     driverId,
