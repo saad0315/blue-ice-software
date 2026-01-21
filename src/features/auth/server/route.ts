@@ -266,36 +266,47 @@ const app = new Hono()
     zValidator(
       'json',
       z.object({
-        suspended: z.boolean(),
+        suspended: z.boolean().optional(),
+        role: z.nativeEnum(UserRole).optional(),
       }),
     ),
     async (ctx) => {
       const user = ctx.get('user');
-      const { suspended } = ctx.req.valid('json');
-
-      // Only SUPER_ADMIN and ADMIN can suspend users
-      if (user.role !== UserRole.SUPER_ADMIN && user.role !== UserRole.ADMIN) {
-        return ctx.json({ error: 'Unauthorized access' }, 403);
-      }
+      const { suspended, role } = ctx.req.valid('json');
 
       const { userId } = ctx.req.param();
+
+      // Authorization Logic
+      if (user.role === UserRole.SUPER_ADMIN) {
+        // SUPER_ADMIN can do anything
+      } else if (user.role === UserRole.ADMIN) {
+        // ADMIN can suspend, but cannot change roles
+        if (role !== undefined) {
+          return ctx.json({ error: 'Only Super Admin can change user roles' }, 403);
+        }
+      } else {
+        // Others cannot access this endpoint
+        return ctx.json({ error: 'Unauthorized access' }, 403);
+      }
 
       try {
         const updatedUser = await db.user.update({
           where: { id: userId },
           data: {
-            suspended,
+            ...(suspended !== undefined && { suspended }),
+            ...(role !== undefined && { role }),
           },
           select: {
             id: true,
             name: true,
             suspended: true,
+            role: true,
           },
         });
 
         return ctx.json({ data: updatedUser });
       } catch (error) {
-        return ctx.json({ error: 'Failed to update user status' }, 500);
+        return ctx.json({ error: 'Failed to update user' }, 500);
       }
     },
   )

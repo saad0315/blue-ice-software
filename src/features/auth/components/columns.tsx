@@ -103,10 +103,10 @@ export const columns: ColumnDef<any>[] = [
   {
     id: 'actions',
     cell: ({ row }) => {
-      const { id, suspended } = row.original;
+      const { id, suspended, role } = row.original;
 
       return (
-        <UserActions id={id} suspended={suspended}>
+        <UserActions id={id} suspended={suspended} currentRole={role}>
           <Button variant="ghost" className="size-8 p-0">
             <MoreVertical className="size-4" />
           </Button>
