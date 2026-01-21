@@ -7,28 +7,28 @@ import { client } from '@/lib/hono';
 type ResponseType = InferResponseType<(typeof client.api.auth)[':userId']['$patch'], 200>;
 type RequestType = InferRequestType<(typeof client.api.auth)[':userId']['$patch']>;
 
-export const useUpdateStatus = () => {
+export const useUpdateRole = () => {
   const queryClient = useQueryClient();
 
   const mutation = useMutation<ResponseType, Error, RequestType>({
     mutationFn: async ({ param, json }) => {
       const response = await client.api.auth[':userId']['$patch']({ param, json });
 
-      if (!response.ok) throw new Error('Failed to update Status.');
+      if (!response.ok) throw new Error('Failed to update role.');
 
       return await response.json();
     },
     onSuccess: ({ data }) => {
-      toast.success('Status updated.');
+      toast.success('Role updated.');
 
       queryClient.invalidateQueries({
         queryKey: ['users'],
       });
     },
     onError: (error) => {
-      console.error('[UPDATE_Status]: ', error);
+      console.error('[UPDATE_ROLE]: ', error);
 
-      toast.error('Failed to update Status.');
+      toast.error('Failed to update role.');
     },
   });
 

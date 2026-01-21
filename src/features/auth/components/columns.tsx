@@ -71,18 +71,18 @@ export const columns: ColumnDef<any>[] = [
     },
   },
   {
-    accessorKey: 'designation',
+    accessorKey: 'role',
     header: ({ column }) => {
       return (
         <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
-          Designation
+          Role
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );
     },
     cell: ({ row }) => {
-      const designation = row.original.designation;
-      return <p className="line-clamp-1">{designation}</p>;
+      const role = row.original.role;
+      return <Badge variant="outline">{role}</Badge>;
     },
   },
   {
@@ -103,10 +103,10 @@ export const columns: ColumnDef<any>[] = [
   {
     id: 'actions',
     cell: ({ row }) => {
-      const { id, suspended } = row.original;
+      const { id, suspended, role } = row.original;
 
       return (
-        <UserActions id={id} suspended={suspended}>
+        <UserActions id={id} suspended={suspended} currentRole={role}>
           <Button variant="ghost" className="size-8 p-0">
             <MoreVertical className="size-4" />
           </Button>
