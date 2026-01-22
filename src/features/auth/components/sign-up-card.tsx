@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { useRegister } from '@/features/auth/api/use-register';
 import { signUpFormSchema } from '@/features/auth/schema';
 
@@ -118,7 +119,7 @@ export const SignUpCard = () => {
               render={({ field }) => (
                 <FormItem>
                   <FormControl>
-                    <Input {...field} type="password" placeholder="Password" />
+                    <PasswordInput {...field} placeholder="Password" />
                   </FormControl>
 
                   <FormMessage />

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { resetPasswordSchema } from '@/features/auth/schema';
 
 import { useReset } from '../api/use-resetPassword';
@@ -63,7 +64,7 @@ export const ResetPassCard = () => {
               render={({ field }) => (
                 <FormItem>
                   <FormControl>
-                    <Input {...field} type="password" placeholder="Password" />
+                    <PasswordInput {...field} placeholder="Password" />
                   </FormControl>
 
                   <FormMessage />
@@ -77,7 +78,7 @@ export const ResetPassCard = () => {
               render={({ field }) => (
                 <FormItem>
                   <FormControl>
-                    <Input {...field} type="password" placeholder="Password" />
+                    <PasswordInput {...field} placeholder="Confirm Password" />
                   </FormControl>
 
                   <FormMessage />

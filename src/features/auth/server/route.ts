@@ -80,6 +80,7 @@ import { AUTH_COOKIE } from '@/features/auth/constants';
 import { resetPasswordSchema, signInFormSchema, signUpFormSchema, updateProfileSchema } from '@/features/auth/schema';
 import { authenticateUser, createUser, generateToken, hashPassword, verifyToken } from '@/lib/authenticate';
 import { db } from '@/lib/db';
+import { getPasswordResetEmailTemplate } from '@/lib/email-templates/password-reset';
 import { authRateLimiter } from '@/lib/rate-limiter';
 import { sendMail } from '@/lib/send-mail';
 import { sessionMiddleware } from '@/lib/session-middleware';
@@ -382,15 +383,16 @@ const app = new Hono()
         // Create reset URL
         const resetUrl = `${ctx.req.header('x-forwarded-proto') || 'http'}://${ctx.req.header('host')}/password/reset/${resetToken}`;
 
-        // Prepare email message
-        const message = `Your password reset token is:- \n\n ${resetUrl} \n\nIf you have not requested this email then, please ignore it`;
+        // Generate HTML email template
+        const htmlTemplate = getPasswordResetEmailTemplate(resetUrl, user.name);
 
         // Send email
         await sendMail({
           email: process.env.SMTP_SERVER_USERNAME || '',
           sendTo: email,
-          subject: 'Password Recovery',
-          text: message,
+          subject: 'Password Reset - Blue Ice Software',
+          text: `Your password reset link: ${resetUrl}\n\nIf you did not request this, please ignore this email.`,
+          html: htmlTemplate,
         });
 
         return ctx.json({

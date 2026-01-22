@@ -18,8 +18,8 @@ export const useLogout = () => {
     },
     onSuccess: () => {
       localStorage.removeItem('fcmToken');
-      router.refresh();
       queryClient.invalidateQueries();
+      router.push('/sign-in');
     },
   });
 

@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { useLogin } from '@/features/auth/api/use-login';
 import { signInFormSchema } from '@/features/auth/schema';
 
@@ -74,7 +75,7 @@ export const SignInCard = () => {
               render={({ field }) => (
                 <FormItem>
                   <FormControl>
-                    <Input {...field} type="password" placeholder="Password" />
+                    <PasswordInput {...field} placeholder="Password" />
                   </FormControl>
 
                   <FormMessage />

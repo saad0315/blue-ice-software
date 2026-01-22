@@ -10,6 +10,7 @@ import { PageLoader } from '@/components/page-loader';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 
 import { useCreateDriver } from '../api/use-create-driver';
 import { useGetDriver } from '../api/use-get-driver';
@@ -138,7 +139,7 @@ export const DriverForm = ({ driverId, onCancel }: DriverFormProps) => {
               <FormItem>
                 <FormLabel>Password</FormLabel>
                 <FormControl>
-                  <Input type="password" placeholder="Min 8 characters" {...field} />
+                  <PasswordInput placeholder="Min 8 characters" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>

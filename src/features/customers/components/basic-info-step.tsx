@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
 import { useCheckCode, useGenerateCode } from '@/features/customers/api/use-generate-code';
 import type { CreateCustomerInput } from '@/features/customers/schema';
 
@@ -100,7 +101,7 @@ export const BasicInfoStep = () => {
               <FormItem>
                 <FormLabel>Password *</FormLabel>
                 <FormControl>
-                  <Input type="password" placeholder="Minimum 8 characters" {...field} />
+                  <PasswordInput placeholder="Minimum 8 characters" {...field} />
                 </FormControl>
                 <FormDescription>Customer login password</FormDescription>
                 <FormMessage />
