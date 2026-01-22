@@ -16,7 +16,7 @@ const TeamPage = async () => {
   return (
     <div className="flex w-full flex-col gap-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Team Management</h1>
+        <h1 className="main-heading">Team Management</h1>
       </div>
       <UserView />
     </div>

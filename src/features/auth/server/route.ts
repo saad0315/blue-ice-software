@@ -165,12 +165,13 @@ const app = new Hono()
       z.object({
         search: z.string().nullish(),
         suspended: z.string().optional(),
+        role: z.string().optional(),
         page: z.string().optional(),
         limit: z.string().optional(),
       }),
     ),
     async (ctx) => {
-      const { search, suspended, page, limit } = ctx.req.valid('query');
+      const { search, suspended, role, page, limit } = ctx.req.valid('query');
 
       const pageNumber = parseInt(page || '1');
       const limitNumber = parseInt(limit || '10');
@@ -185,6 +186,7 @@ const app = new Hono()
                 }
               : {},
             suspended !== undefined ? { suspended: suspended === 'true' } : {},
+            role ? { role: role as UserRole } : {},
           ],
         };
 

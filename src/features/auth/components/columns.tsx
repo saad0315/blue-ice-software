@@ -29,9 +29,9 @@ export const columns: ColumnDef<any>[] = [
             <AvatarImage src={getImageUrl(imageUrl)} alt={''} />
             <AvatarFallback>{name}</AvatarFallback>
           </Avatar> */}
-          <Avatar className="size-10 border border-neutral-300 transition hover:opacity-75">
+          <Avatar className="size-10  transition hover:opacity-75">
             <AvatarImage src={getImageUrl(imageUrl)} alt={''} className="object-cover" />
-            <AvatarFallback className={cn(`flex items-center justify-center font-medium`, getAvatarColor(name))}>
+            <AvatarFallback className={cn(`flex items-center justify-center font-medium text-[#ffffff] text-md`, getAvatarColor(name))}>
               {name.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
@@ -102,6 +102,9 @@ export const columns: ColumnDef<any>[] = [
   },
   {
     id: 'actions',
+    meta: {
+      sticky: true,
+    },
     cell: ({ row }) => {
       const { id, suspended, role } = row.original;
 

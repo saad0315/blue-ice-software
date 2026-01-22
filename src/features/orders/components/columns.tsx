@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { ArrowUpDown, FileText, Info, MoreHorizontal, Pencil, Trash } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -19,6 +20,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useConfirm } from '@/hooks/use-confirm';
+import { cn, getAvatarColor } from '@/lib/utils';
 
 import { useDeleteOrder } from '../api/use-delete-order';
 import { useInvoiceModal } from '../hooks/use-invoice-modal';
@@ -143,6 +145,19 @@ export const columns: ColumnDef<Order>[] = [
   {
     accessorKey: 'customer.user.name',
     header: 'Customer',
+    cell: ({ row }) => {
+      const name = row.original.customer.user.name;
+      return (
+        <div className="flex items-center space-x-2">
+          <Avatar className="size-8 transition hover:opacity-75">
+            <AvatarFallback className={cn('flex items-center justify-center font-medium text-white text-sm', getAvatarColor(name))}>
+              {name.charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <p className="line-clamp-1 capitalize">{name}</p>
+        </div>
+      );
+    },
   },
   {
     accessorKey: 'customer.route.name',
@@ -151,7 +166,20 @@ export const columns: ColumnDef<Order>[] = [
   {
     accessorKey: 'driver.user.name',
     header: 'Driver',
-    cell: ({ row }) => row.original.driver?.user.name || '-',
+    cell: ({ row }) => {
+      const name = row.original.driver?.user.name;
+      if (!name) return '-';
+      return (
+        <div className="flex items-center space-x-2">
+          <Avatar className="size-8 transition hover:opacity-75">
+            <AvatarFallback className={cn('flex items-center justify-center font-medium text-white text-sm', getAvatarColor(name))}>
+              {name.charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <p className="line-clamp-1 capitalize">{name}</p>
+        </div>
+      );
+    },
   },
   {
     id: 'items',

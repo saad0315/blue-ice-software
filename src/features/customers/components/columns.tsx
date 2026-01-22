@@ -4,6 +4,7 @@ import { ColumnDef } from '@tanstack/react-table';
 import { ArrowUpDown, Eye, MoreHorizontal, Pencil, Trash } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,6 +18,7 @@ import {
 import { useDeleteCustomer } from '@/features/customers/api/use-delete-customer';
 import { DELIVERY_DAYS } from '@/features/customers/constants';
 import { useConfirm } from '@/hooks/use-confirm';
+import { cn, getAvatarColor } from '@/lib/utils';
 
 // Define the shape of your data based on the API response
 // This should match the return type of getCustomers in queries.ts
@@ -106,7 +108,19 @@ export const columns: ColumnDef<Customer>[] = [
         </Button>
       );
     },
-    cell: ({ row }) => <div className="pl-4">{row.original.user.name}</div>,
+    cell: ({ row }) => {
+      const name = row.original.user.name;
+      return (
+        <div className="flex items-center space-x-2 pl-4">
+          <Avatar className="size-8 transition hover:opacity-75">
+            <AvatarFallback className={cn('flex items-center justify-center font-medium text-white text-sm', getAvatarColor(name))}>
+              {name.charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <p className="line-clamp-1 capitalize">{name}</p>
+        </div>
+      );
+    },
   },
   {
     accessorKey: 'user.phoneNumber',

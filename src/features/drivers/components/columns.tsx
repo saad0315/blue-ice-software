@@ -4,9 +4,11 @@ import { ColumnDef } from '@tanstack/react-table';
 import { ArrowUpDown, Eye, MoreHorizontal, Pencil, Trash } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useConfirm } from '@/hooks/use-confirm';
+import { cn, getAvatarColor } from '@/lib/utils';
 
 import { useDeleteDriver } from '../api/use-delete-driver';
 import { useDriverModal } from '../hooks/use-driver-modal';
@@ -86,12 +88,18 @@ export const columns: ColumnDef<Driver>[] = [
     },
     cell: ({ row }) => {
       const router = useRouter();
+      const name = row.original.user.name;
       return (
         <button
           onClick={() => router.push(`/drivers/${row.original.id}`)}
-          className="cursor-pointer pl-4 text-left font-medium text-primary hover:underline"
+          className="flex items-center space-x-2 cursor-pointer pl-4 text-left font-medium text-primary hover:underline"
         >
-          {row.original.user.name}
+          <Avatar className="size-8 transition hover:opacity-75">
+            <AvatarFallback className={cn('flex items-center justify-center font-medium text-white text-sm', getAvatarColor(name))}>
+              {name.charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <span className="line-clamp-1 capitalize">{name}</span>
         </button>
       );
     },

@@ -17,15 +17,14 @@ export const DataSearch = () => {
   }, [debouncedValue]);
 
   return (
-    <div className="relative">
-      <SearchIcon className="absolute left-2.5 top-[20%] size-4 text-muted-foreground" />
-
+    <div className="relative min-w-[180px] lg:w-[180px] ">
+      <SearchIcon className="absolute left-2.5 top-[33%] size-4 text-muted-foreground" />
       <Input
         type="search"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="Search for a Users"
-        className="h-8 w-full px-8 lg:w-[320px]"
+        className=" min-h-10 w-full px-8 lg:w-[320px]"
       />
     </div>
   );
