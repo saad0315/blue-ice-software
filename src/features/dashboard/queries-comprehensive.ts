@@ -63,29 +63,37 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
   let liveOrderBreakdown: Record<string, number> = {};
 
   if (!isHistoricalOnly) {
-    // Live Revenue
-    const revenueAgg = await db.order.aggregate({
+    // Live Stats Optimization: Consolidate multiple queries into one groupBy query
+    const statusGroups = await db.order.groupBy({
+      by: ['status'],
       where: {
         scheduledDate: { gte: liveStart, lte: endDate },
-        status: OrderStatus.COMPLETED,
       },
+      _count: { id: true },
       _sum: { totalAmount: true },
     });
-    liveRevenue = Number(revenueAgg._sum.totalAmount || 0);
 
-    // Live Completed Order Count
-    const ordersAgg = await db.order.count({
-      where: {
-        scheduledDate: { gte: liveStart, lte: endDate },
-        status: OrderStatus.COMPLETED,
-      },
-    });
-    liveCompletedOrders = ordersAgg;
+    // Reset accumulators
+    liveTotalVolume = 0;
+    liveRevenue = 0;
+    liveCompletedOrders = 0;
 
-    // Live Total Volume (All Statuses)
-    liveTotalVolume = await db.order.count({
-      where: { scheduledDate: { gte: liveStart, lte: endDate } },
-    });
+    for (const group of statusGroups) {
+      const count = group._count.id;
+      const amount = Number(group._sum.totalAmount || 0);
+
+      // Populate breakdown
+      liveOrderBreakdown[group.status] = count;
+
+      // Accumulate volume (sum of all statuses)
+      liveTotalVolume += count;
+
+      // Extract specific metrics for COMPLETED orders
+      if (group.status === OrderStatus.COMPLETED) {
+        liveCompletedOrders = count;
+        liveRevenue = amount;
+      }
+    }
 
     // Live Revenue Trend (Group by Date)
     const liveTrendRaw = await db.$queryRaw`
@@ -106,19 +114,6 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       revenue: Number(t.revenue || 0),
       orders: Number(t.orders || 0),
     }));
-
-    // Live Order Status Breakdown
-    const statusGroups = await db.order.groupBy({
-      by: ['status'],
-      where: {
-        scheduledDate: { gte: liveStart, lte: endDate },
-      },
-      _count: { id: true },
-    });
-
-    for (const group of statusGroups) {
-      liveOrderBreakdown[group.status] = group._count.id;
-    }
   }
 
   // 3. Combine Data
