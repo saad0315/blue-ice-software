@@ -184,7 +184,6 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
 
     // Exceptions and alerts
     failedOrders,
-    lowStockProducts,
     highCreditCustomers,
   ] = await Promise.all([
     // Total Active Customers
@@ -402,20 +401,6 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       orderBy: { scheduledDate: 'desc' },
     }),
 
-    // Low stock products (< 20)
-    db.product.findMany({
-      where: {
-        stockFilled: { lt: 20 },
-      },
-      select: {
-        id: true,
-        name: true,
-        stockFilled: true,
-        stockEmpty: true,
-      },
-      orderBy: { stockFilled: 'asc' },
-    }),
-
     // High credit customers (approaching limit)
     db.customerProfile.findMany({
       where: {
@@ -431,6 +416,17 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       take: 10,
     }),
   ]);
+
+  // Calculate low stock products from inventory (avoiding extra DB call)
+  const lowStockProducts = productInventory
+    .filter((p) => p.stockFilled < 20)
+    .sort((a, b) => a.stockFilled - b.stockFilled)
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      stockFilled: p.stockFilled,
+      stockEmpty: p.stockEmpty,
+    }));
 
   // Combine Trends
   const combinedRevenueTrend = [...historicalTrends, ...liveTrends].sort((a, b) => a.date.getTime() - b.date.getTime());
