@@ -1,7 +1,7 @@
 import { CashHandoverStatus, ExpenseStatus, OrderStatus, PaymentMethod } from '@prisma/client';
 import { differenceInDays, format, subDays } from 'date-fns';
 
-import { toUtcStartOfDay, toUtcEndOfDay } from '@/lib/date-utils';
+import { toUtcEndOfDay, toUtcStartOfDay } from '@/lib/date-utils';
 import { db } from '@/lib/db';
 
 export async function getComprehensiveDashboardData(params?: { startDate?: Date; endDate?: Date }) {
@@ -24,6 +24,7 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
   let historicalTotalVolume = 0;
   let historicalTrends: { date: Date; revenue: number; orders: number }[] = [];
   let historicalOrderBreakdown: Record<string, number> = {};
+  const historicalOrderTrends: any[] = [];
 
   if (!isLiveOnly) {
     const dailyStats = await db.dailyStats.findMany({
@@ -52,6 +53,14 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       historicalOrderBreakdown[OrderStatus.CANCELLED] = (historicalOrderBreakdown[OrderStatus.CANCELLED] || 0) + stat.ordersCancelled;
       historicalOrderBreakdown[OrderStatus.PENDING] = (historicalOrderBreakdown[OrderStatus.PENDING] || 0) + stat.ordersPending;
       historicalOrderBreakdown[OrderStatus.RESCHEDULED] = (historicalOrderBreakdown[OrderStatus.RESCHEDULED] || 0) + stat.ordersRescheduled;
+
+      historicalOrderTrends.push({
+        date: format(stat.date, 'MMM dd'),
+        [OrderStatus.COMPLETED]: stat.ordersCompleted,
+        [OrderStatus.PENDING]: stat.ordersPending,
+        [OrderStatus.CANCELLED]: stat.ordersCancelled,
+        [OrderStatus.RESCHEDULED]: stat.ordersRescheduled,
+      });
     }
   }
 
@@ -63,58 +72,58 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
   let liveOrderBreakdown: Record<string, number> = {};
 
   if (!isHistoricalOnly) {
-    // Live Revenue
-    const revenueAgg = await db.order.aggregate({
-      where: {
-        scheduledDate: { gte: liveStart, lte: endDate },
-        status: OrderStatus.COMPLETED,
-      },
-      _sum: { totalAmount: true },
-    });
+    const [revenueAgg, ordersAgg, totalVolumeAgg, liveTrendRaw, statusGroups] = await Promise.all([
+      // Live Revenue
+      db.order.aggregate({
+        where: {
+          scheduledDate: { gte: liveStart, lte: endDate },
+          status: OrderStatus.COMPLETED,
+        },
+        _sum: { totalAmount: true },
+      }),
+      // Live Completed Order Count
+      db.order.count({
+        where: {
+          scheduledDate: { gte: liveStart, lte: endDate },
+          status: OrderStatus.COMPLETED,
+        },
+      }),
+      // Live Total Volume (All Statuses)
+      db.order.count({
+        where: { scheduledDate: { gte: liveStart, lte: endDate } },
+      }),
+      // Live Revenue Trend (Group by Date)
+      db.$queryRaw`
+        SELECT
+          DATE("scheduledDate") as date,
+          SUM("totalAmount") as revenue,
+          COUNT(*) as orders
+        FROM "Order"
+        WHERE "scheduledDate" >= ${liveStart}
+          AND "scheduledDate" <= ${endDate}
+          AND status = ${OrderStatus.COMPLETED}::"OrderStatus"
+        GROUP BY DATE("scheduledDate")
+        ORDER BY date ASC
+      `,
+      // Live Order Status Breakdown
+      db.order.groupBy({
+        by: ['status'],
+        where: {
+          scheduledDate: { gte: liveStart, lte: endDate },
+        },
+        _count: { id: true },
+      }),
+    ]);
+
     liveRevenue = Number(revenueAgg._sum.totalAmount || 0);
-
-    // Live Completed Order Count
-    const ordersAgg = await db.order.count({
-      where: {
-        scheduledDate: { gte: liveStart, lte: endDate },
-        status: OrderStatus.COMPLETED,
-      },
-    });
     liveCompletedOrders = ordersAgg;
-
-    // Live Total Volume (All Statuses)
-    liveTotalVolume = await db.order.count({
-      where: { scheduledDate: { gte: liveStart, lte: endDate } },
-    });
-
-    // Live Revenue Trend (Group by Date)
-    const liveTrendRaw = await db.$queryRaw`
-      SELECT
-        DATE("scheduledDate") as date,
-        SUM("totalAmount") as revenue,
-        COUNT(*) as orders
-      FROM "Order"
-      WHERE "scheduledDate" >= ${liveStart}
-        AND "scheduledDate" <= ${endDate}
-        AND status = ${OrderStatus.COMPLETED}::"OrderStatus"
-      GROUP BY DATE("scheduledDate")
-      ORDER BY date ASC
-    `;
+    liveTotalVolume = totalVolumeAgg;
 
     liveTrends = (liveTrendRaw as any[]).map((t) => ({
       date: new Date(t.date),
       revenue: Number(t.revenue || 0),
       orders: Number(t.orders || 0),
     }));
-
-    // Live Order Status Breakdown
-    const statusGroups = await db.order.groupBy({
-      by: ['status'],
-      where: {
-        scheduledDate: { gte: liveStart, lte: endDate },
-      },
-      _count: { id: true },
-    });
 
     for (const group of statusGroups) {
       liveOrderBreakdown[group.status] = group._count.id;
@@ -436,26 +445,7 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
   const combinedRevenueTrend = [...historicalTrends, ...liveTrends].sort((a, b) => a.date.getTime() - b.date.getTime());
 
   // Combine Order Trends
-  const combinedOrderTrends: any[] = [];
-
-  if (!isLiveOnly) {
-    const dailyStats = await db.dailyStats.findMany({
-      where: {
-        date: { gte: startDate, lte: historicalEnd },
-      },
-      orderBy: { date: 'asc' },
-    });
-
-    dailyStats.forEach((stat) => {
-      combinedOrderTrends.push({
-        date: format(stat.date, 'MMM dd'),
-        [OrderStatus.COMPLETED]: stat.ordersCompleted,
-        [OrderStatus.PENDING]: stat.ordersPending,
-        [OrderStatus.CANCELLED]: stat.ordersCancelled,
-        [OrderStatus.RESCHEDULED]: stat.ordersRescheduled,
-      });
-    });
-  }
+  const combinedOrderTrends: any[] = [...historicalOrderTrends];
 
   // Fetch Live Order Status Trend
   if (!isHistoricalOnly) {
@@ -558,12 +548,8 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
   const pendingStatuses = [OrderStatus.PENDING, OrderStatus.SCHEDULED, OrderStatus.IN_PROGRESS] as OrderStatus[];
   const issueStatuses = [OrderStatus.CANCELLED, OrderStatus.RESCHEDULED] as OrderStatus[];
 
-  const pendingOrders = ordersByStatus
-    .filter((s) => pendingStatuses.includes(s.status))
-    .reduce((sum, s) => sum + s._count.id, 0);
-  const issueOrders = ordersByStatus
-    .filter((s) => issueStatuses.includes(s.status))
-    .reduce((sum, s) => sum + s._count.id, 0);
+  const pendingOrders = ordersByStatus.filter((s) => pendingStatuses.includes(s.status)).reduce((sum, s) => sum + s._count.id, 0);
+  const issueOrders = ordersByStatus.filter((s) => issueStatuses.includes(s.status)).reduce((sum, s) => sum + s._count.id, 0);
 
   // Completion rate
   const completionRate = totalVolume > 0 ? (totalCompletedOrders / totalVolume) * 100 : 0;
