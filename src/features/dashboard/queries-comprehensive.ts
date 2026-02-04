@@ -63,62 +63,50 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
   let liveOrderBreakdown: Record<string, number> = {};
 
   if (!isHistoricalOnly) {
-    // Live Revenue
-    const revenueAgg = await db.order.aggregate({
-      where: {
-        scheduledDate: { gte: liveStart, lte: endDate },
-        status: OrderStatus.COMPLETED,
-      },
-      _sum: { totalAmount: true },
-    });
-    liveRevenue = Number(revenueAgg._sum.totalAmount || 0);
+    // OPTIMIZATION: Combine multiple queries into one GroupBy and one QueryRaw
+    const [statusGroups, liveTrendRaw] = await Promise.all([
+      db.order.groupBy({
+        by: ['status'],
+        where: {
+          scheduledDate: { gte: liveStart, lte: endDate },
+        },
+        _count: { id: true },
+        _sum: { totalAmount: true },
+      }),
+      db.$queryRaw`
+        SELECT
+          DATE("scheduledDate") as date,
+          SUM("totalAmount") as revenue,
+          COUNT(*) as orders
+        FROM "Order"
+        WHERE "scheduledDate" >= ${liveStart}
+          AND "scheduledDate" <= ${endDate}
+          AND status = ${OrderStatus.COMPLETED}::"OrderStatus"
+        GROUP BY DATE("scheduledDate")
+        ORDER BY date ASC
+      `,
+    ]);
 
-    // Live Completed Order Count
-    const ordersAgg = await db.order.count({
-      where: {
-        scheduledDate: { gte: liveStart, lte: endDate },
-        status: OrderStatus.COMPLETED,
-      },
-    });
-    liveCompletedOrders = ordersAgg;
+    // Process Status Groups to get Revenue, Completed Count, Total Volume
+    for (const group of statusGroups) {
+      const count = group._count.id;
+      const amount = Number(group._sum.totalAmount || 0);
 
-    // Live Total Volume (All Statuses)
-    liveTotalVolume = await db.order.count({
-      where: { scheduledDate: { gte: liveStart, lte: endDate } },
-    });
+      liveOrderBreakdown[group.status] = count;
+      liveTotalVolume += count;
 
-    // Live Revenue Trend (Group by Date)
-    const liveTrendRaw = await db.$queryRaw`
-      SELECT
-        DATE("scheduledDate") as date,
-        SUM("totalAmount") as revenue,
-        COUNT(*) as orders
-      FROM "Order"
-      WHERE "scheduledDate" >= ${liveStart}
-        AND "scheduledDate" <= ${endDate}
-        AND status = ${OrderStatus.COMPLETED}::"OrderStatus"
-      GROUP BY DATE("scheduledDate")
-      ORDER BY date ASC
-    `;
+      if (group.status === OrderStatus.COMPLETED) {
+        liveCompletedOrders = count;
+        liveRevenue = amount;
+      }
+    }
 
+    // Process Trends
     liveTrends = (liveTrendRaw as any[]).map((t) => ({
       date: new Date(t.date),
       revenue: Number(t.revenue || 0),
       orders: Number(t.orders || 0),
     }));
-
-    // Live Order Status Breakdown
-    const statusGroups = await db.order.groupBy({
-      by: ['status'],
-      where: {
-        scheduledDate: { gte: liveStart, lte: endDate },
-      },
-      _count: { id: true },
-    });
-
-    for (const group of statusGroups) {
-      liveOrderBreakdown[group.status] = group._count.id;
-    }
   }
 
   // 3. Combine Data
