@@ -1,7 +1,7 @@
 import { CashHandoverStatus, ExpenseStatus, OrderStatus, PaymentMethod } from '@prisma/client';
 import { differenceInDays, format, subDays } from 'date-fns';
 
-import { toUtcStartOfDay, toUtcEndOfDay } from '@/lib/date-utils';
+import { toUtcEndOfDay, toUtcStartOfDay } from '@/lib/date-utils';
 import { db } from '@/lib/db';
 
 export async function getComprehensiveDashboardData(params?: { startDate?: Date; endDate?: Date }) {
@@ -24,6 +24,8 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
   let historicalTotalVolume = 0;
   let historicalTrends: { date: Date; revenue: number; orders: number }[] = [];
   let historicalOrderBreakdown: Record<string, number> = {};
+  // ⚡ Optimization: Combine Order Trends within the same loop to avoid redundant DB query
+  const combinedOrderTrends: any[] = [];
 
   if (!isLiveOnly) {
     const dailyStats = await db.dailyStats.findMany({
@@ -52,6 +54,14 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       historicalOrderBreakdown[OrderStatus.CANCELLED] = (historicalOrderBreakdown[OrderStatus.CANCELLED] || 0) + stat.ordersCancelled;
       historicalOrderBreakdown[OrderStatus.PENDING] = (historicalOrderBreakdown[OrderStatus.PENDING] || 0) + stat.ordersPending;
       historicalOrderBreakdown[OrderStatus.RESCHEDULED] = (historicalOrderBreakdown[OrderStatus.RESCHEDULED] || 0) + stat.ordersRescheduled;
+
+      combinedOrderTrends.push({
+        date: format(stat.date, 'MMM dd'),
+        [OrderStatus.COMPLETED]: stat.ordersCompleted,
+        [OrderStatus.PENDING]: stat.ordersPending,
+        [OrderStatus.CANCELLED]: stat.ordersCancelled,
+        [OrderStatus.RESCHEDULED]: stat.ordersRescheduled,
+      });
     }
   }
 
@@ -435,28 +445,6 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
   // Combine Trends
   const combinedRevenueTrend = [...historicalTrends, ...liveTrends].sort((a, b) => a.date.getTime() - b.date.getTime());
 
-  // Combine Order Trends
-  const combinedOrderTrends: any[] = [];
-
-  if (!isLiveOnly) {
-    const dailyStats = await db.dailyStats.findMany({
-      where: {
-        date: { gte: startDate, lte: historicalEnd },
-      },
-      orderBy: { date: 'asc' },
-    });
-
-    dailyStats.forEach((stat) => {
-      combinedOrderTrends.push({
-        date: format(stat.date, 'MMM dd'),
-        [OrderStatus.COMPLETED]: stat.ordersCompleted,
-        [OrderStatus.PENDING]: stat.ordersPending,
-        [OrderStatus.CANCELLED]: stat.ordersCancelled,
-        [OrderStatus.RESCHEDULED]: stat.ordersRescheduled,
-      });
-    });
-  }
-
   // Fetch Live Order Status Trend
   if (!isHistoricalOnly) {
     const liveOrderTrendRaw = await db.$queryRaw`
@@ -558,12 +546,8 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
   const pendingStatuses = [OrderStatus.PENDING, OrderStatus.SCHEDULED, OrderStatus.IN_PROGRESS] as OrderStatus[];
   const issueStatuses = [OrderStatus.CANCELLED, OrderStatus.RESCHEDULED] as OrderStatus[];
 
-  const pendingOrders = ordersByStatus
-    .filter((s) => pendingStatuses.includes(s.status))
-    .reduce((sum, s) => sum + s._count.id, 0);
-  const issueOrders = ordersByStatus
-    .filter((s) => issueStatuses.includes(s.status))
-    .reduce((sum, s) => sum + s._count.id, 0);
+  const pendingOrders = ordersByStatus.filter((s) => pendingStatuses.includes(s.status)).reduce((sum, s) => sum + s._count.id, 0);
+  const issueOrders = ordersByStatus.filter((s) => issueStatuses.includes(s.status)).reduce((sum, s) => sum + s._count.id, 0);
 
   // Completion rate
   const completionRate = totalVolume > 0 ? (totalCompletedOrders / totalVolume) * 100 : 0;
