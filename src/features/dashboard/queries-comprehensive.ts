@@ -25,8 +25,10 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
   let historicalTrends: { date: Date; revenue: number; orders: number }[] = [];
   let historicalOrderBreakdown: Record<string, number> = {};
 
+  let fetchedDailyStats: any[] = []; // Reuse for trends later
+
   if (!isLiveOnly) {
-    const dailyStats = await db.dailyStats.findMany({
+    fetchedDailyStats = await db.dailyStats.findMany({
       where: {
         date: {
           gte: startDate,
@@ -36,7 +38,7 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       orderBy: { date: 'asc' },
     });
 
-    for (const stat of dailyStats) {
+    for (const stat of fetchedDailyStats) {
       const revenue = Number(stat.totalRevenue);
       historicalRevenue += revenue;
       historicalCompletedOrders += stat.ordersCompleted;
@@ -63,31 +65,7 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
   let liveOrderBreakdown: Record<string, number> = {};
 
   if (!isHistoricalOnly) {
-    // Live Revenue
-    const revenueAgg = await db.order.aggregate({
-      where: {
-        scheduledDate: { gte: liveStart, lte: endDate },
-        status: OrderStatus.COMPLETED,
-      },
-      _sum: { totalAmount: true },
-    });
-    liveRevenue = Number(revenueAgg._sum.totalAmount || 0);
-
-    // Live Completed Order Count
-    const ordersAgg = await db.order.count({
-      where: {
-        scheduledDate: { gte: liveStart, lte: endDate },
-        status: OrderStatus.COMPLETED,
-      },
-    });
-    liveCompletedOrders = ordersAgg;
-
-    // Live Total Volume (All Statuses)
-    liveTotalVolume = await db.order.count({
-      where: { scheduledDate: { gte: liveStart, lte: endDate } },
-    });
-
-    // Live Revenue Trend (Group by Date)
+    // Live Revenue Trend (Group by Date) - used for aggregated live stats too
     const liveTrendRaw = await db.$queryRaw`
       SELECT
         DATE("scheduledDate") as date,
@@ -107,6 +85,10 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       orders: Number(t.orders || 0),
     }));
 
+    // Derive aggregated live stats from trends
+    liveRevenue = liveTrends.reduce((sum, t) => sum + t.revenue, 0);
+    liveCompletedOrders = liveTrends.reduce((sum, t) => sum + t.orders, 0);
+
     // Live Order Status Breakdown
     const statusGroups = await db.order.groupBy({
       by: ['status'],
@@ -119,6 +101,9 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
     for (const group of statusGroups) {
       liveOrderBreakdown[group.status] = group._count.id;
     }
+
+    // Derive total volume from status groups
+    liveTotalVolume = statusGroups.reduce((sum, group) => sum + group._count.id, 0);
   }
 
   // 3. Combine Data
@@ -235,13 +220,8 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
     }),
 
     // Cash management stats (Expected from Orders)
-    db.order.aggregate({
-      where: {
-        scheduledDate: { gte: startDate, lte: endDate },
-        status: OrderStatus.COMPLETED,
-      },
-      _sum: { cashCollected: true },
-    }),
+    // Optimization: REMOVED redundant aggregate query (calculated from ordersByPaymentMethod)
+    Promise.resolve({ _sum: { cashCollected: 0 } }),
 
     // Count of orders where cash was collected
     db.order.count({
@@ -403,18 +383,8 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
     }),
 
     // Low stock products (< 20)
-    db.product.findMany({
-      where: {
-        stockFilled: { lt: 20 },
-      },
-      select: {
-        id: true,
-        name: true,
-        stockFilled: true,
-        stockEmpty: true,
-      },
-      orderBy: { stockFilled: 'asc' },
-    }),
+    // Optimization: REMOVED redundant query (calculated from productInventory)
+    Promise.resolve([]),
 
     // High credit customers (approaching limit)
     db.customerProfile.findMany({
@@ -439,14 +409,8 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
   const combinedOrderTrends: any[] = [];
 
   if (!isLiveOnly) {
-    const dailyStats = await db.dailyStats.findMany({
-      where: {
-        date: { gte: startDate, lte: historicalEnd },
-      },
-      orderBy: { date: 'asc' },
-    });
-
-    dailyStats.forEach((stat) => {
+    // Optimization: Reused fetchedDailyStats from step 1
+    fetchedDailyStats.forEach((stat) => {
       combinedOrderTrends.push({
         date: format(stat.date, 'MMM dd'),
         [OrderStatus.COMPLETED]: stat.ordersCompleted,
@@ -614,7 +578,8 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       })),
     },
     cashManagement: {
-      totalCashCollected: parseFloat(cashStats._sum.cashCollected?.toString() || '0'),
+      // Optimization: Calculate totalCashCollected from ordersByPaymentMethod
+      totalCashCollected: ordersByPaymentMethod.reduce((sum, p) => sum + parseFloat(p._sum.cashCollected?.toString() || '0'), 0),
       cashOrders: cashOrdersCount,
       pendingHandovers:
         Array.isArray(pendingHandovers) && pendingHandovers[0]
@@ -687,7 +652,16 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
         date: o.scheduledDate,
         amount: parseFloat(o.totalAmount.toString()),
       })),
-      lowStockProducts: lowStockProducts,
+      // Optimization: Filter productInventory for low stock
+      lowStockProducts: productInventory
+        .filter((p) => p.stockFilled < 20)
+        .sort((a, b) => a.stockFilled - b.stockFilled)
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          stockFilled: p.stockFilled,
+          stockEmpty: p.stockEmpty,
+        })),
       highCreditCustomers: highCreditCustomers.map((c) => ({
         id: c.id,
         name: c.user.name,
