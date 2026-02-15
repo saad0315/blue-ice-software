@@ -1,7 +1,7 @@
 import { CashHandoverStatus, ExpenseStatus, OrderStatus, PaymentMethod } from '@prisma/client';
 import { differenceInDays, format, subDays } from 'date-fns';
 
-import { toUtcStartOfDay, toUtcEndOfDay } from '@/lib/date-utils';
+import { toUtcEndOfDay, toUtcStartOfDay } from '@/lib/date-utils';
 import { db } from '@/lib/db';
 
 export async function getComprehensiveDashboardData(params?: { startDate?: Date; endDate?: Date }) {
@@ -157,7 +157,6 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
     ordersByPaymentMethod,
 
     // Cash management
-    cashStats,
     cashOrdersCount,
     pendingHandovers,
     verifiedHandovers, // New: Verified Cash
@@ -184,7 +183,6 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
 
     // Exceptions and alerts
     failedOrders,
-    lowStockProducts,
     highCreditCustomers,
   ] = await Promise.all([
     // Total Active Customers
@@ -231,15 +229,6 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
         status: OrderStatus.COMPLETED,
       },
       _count: { id: true },
-      _sum: { cashCollected: true },
-    }),
-
-    // Cash management stats (Expected from Orders)
-    db.order.aggregate({
-      where: {
-        scheduledDate: { gte: startDate, lte: endDate },
-        status: OrderStatus.COMPLETED,
-      },
       _sum: { cashCollected: true },
     }),
 
@@ -402,20 +391,6 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       orderBy: { scheduledDate: 'desc' },
     }),
 
-    // Low stock products (< 20)
-    db.product.findMany({
-      where: {
-        stockFilled: { lt: 20 },
-      },
-      select: {
-        id: true,
-        name: true,
-        stockFilled: true,
-        stockEmpty: true,
-      },
-      orderBy: { stockFilled: 'asc' },
-    }),
-
     // High credit customers (approaching limit)
     db.customerProfile.findMany({
       where: {
@@ -431,6 +406,12 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       take: 10,
     }),
   ]);
+
+  // Derive Low Stock Products (stockFilled < 20)
+  const lowStockProducts = productInventory.filter((p) => p.stockFilled < 20).sort((a, b) => a.stockFilled - b.stockFilled);
+
+  // Derive Cash Stats (Total Cash Collected)
+  const totalCashCollected = ordersByPaymentMethod.reduce((sum, p) => sum + Number(p._sum.cashCollected || 0), 0);
 
   // Combine Trends
   const combinedRevenueTrend = [...historicalTrends, ...liveTrends].sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -558,12 +539,8 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
   const pendingStatuses = [OrderStatus.PENDING, OrderStatus.SCHEDULED, OrderStatus.IN_PROGRESS] as OrderStatus[];
   const issueStatuses = [OrderStatus.CANCELLED, OrderStatus.RESCHEDULED] as OrderStatus[];
 
-  const pendingOrders = ordersByStatus
-    .filter((s) => pendingStatuses.includes(s.status))
-    .reduce((sum, s) => sum + s._count.id, 0);
-  const issueOrders = ordersByStatus
-    .filter((s) => issueStatuses.includes(s.status))
-    .reduce((sum, s) => sum + s._count.id, 0);
+  const pendingOrders = ordersByStatus.filter((s) => pendingStatuses.includes(s.status)).reduce((sum, s) => sum + s._count.id, 0);
+  const issueOrders = ordersByStatus.filter((s) => issueStatuses.includes(s.status)).reduce((sum, s) => sum + s._count.id, 0);
 
   // Completion rate
   const completionRate = totalVolume > 0 ? (totalCompletedOrders / totalVolume) * 100 : 0;
@@ -614,7 +591,7 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       })),
     },
     cashManagement: {
-      totalCashCollected: parseFloat(cashStats._sum.cashCollected?.toString() || '0'),
+      totalCashCollected,
       cashOrders: cashOrdersCount,
       pendingHandovers:
         Array.isArray(pendingHandovers) && pendingHandovers[0]
