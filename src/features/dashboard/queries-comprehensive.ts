@@ -1,7 +1,7 @@
 import { CashHandoverStatus, ExpenseStatus, OrderStatus, PaymentMethod } from '@prisma/client';
 import { differenceInDays, format, subDays } from 'date-fns';
 
-import { toUtcStartOfDay, toUtcEndOfDay } from '@/lib/date-utils';
+import { toUtcEndOfDay, toUtcStartOfDay } from '@/lib/date-utils';
 import { db } from '@/lib/db';
 
 export async function getComprehensiveDashboardData(params?: { startDate?: Date; endDate?: Date }) {
@@ -128,16 +128,7 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
 
   // Previous period for comparison
   let prevDaysDiff = differenceInDays(endDate, startDate);
-  if (prevDaysDiff === 0) prevDaysDiff = 1; // At least 1 day for comparison (e.g. Today vs Yesterday)
-
-  // Actually, differenceInDays returns integer. If start=end (same day), diff is 0.
-  // We want to subtract (diff + 1) days for strictly non-overlapping previous period of same duration?
-  // Or just diff?
-  // If range is [Today], length is 1 day. Prev should be [Yesterday].
-  // If range is [Oct 1 - Oct 30], length is 30 days.
-  // differenceInDays(Oct 30, Oct 1) = 29.
-  // We want 30 days prior.
-  // So prevDaysDiff should be `differenceInDays(...) + 1`.
+  if (prevDaysDiff === 0) prevDaysDiff = 1;
 
   const periodLength = differenceInDays(endDate, startDate) + 1;
   const prevStartDate = subDays(startDate, periodLength);
@@ -157,10 +148,9 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
     ordersByPaymentMethod,
 
     // Cash management
-    cashStats,
     cashOrdersCount,
     pendingHandovers,
-    verifiedHandovers, // New: Verified Cash
+    verifiedHandovers,
 
     // Driver performance
     liveDriverPerformance,
@@ -184,7 +174,6 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
 
     // Exceptions and alerts
     failedOrders,
-    lowStockProducts,
     highCreditCustomers,
   ] = await Promise.all([
     // Total Active Customers
@@ -231,15 +220,6 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
         status: OrderStatus.COMPLETED,
       },
       _count: { id: true },
-      _sum: { cashCollected: true },
-    }),
-
-    // Cash management stats (Expected from Orders)
-    db.order.aggregate({
-      where: {
-        scheduledDate: { gte: startDate, lte: endDate },
-        status: OrderStatus.COMPLETED,
-      },
       _sum: { cashCollected: true },
     }),
 
@@ -402,20 +382,6 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       orderBy: { scheduledDate: 'desc' },
     }),
 
-    // Low stock products (< 20)
-    db.product.findMany({
-      where: {
-        stockFilled: { lt: 20 },
-      },
-      select: {
-        id: true,
-        name: true,
-        stockFilled: true,
-        stockEmpty: true,
-      },
-      orderBy: { stockFilled: 'asc' },
-    }),
-
     // High credit customers (approaching limit)
     db.customerProfile.findMany({
       where: {
@@ -558,15 +524,24 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
   const pendingStatuses = [OrderStatus.PENDING, OrderStatus.SCHEDULED, OrderStatus.IN_PROGRESS] as OrderStatus[];
   const issueStatuses = [OrderStatus.CANCELLED, OrderStatus.RESCHEDULED] as OrderStatus[];
 
-  const pendingOrders = ordersByStatus
-    .filter((s) => pendingStatuses.includes(s.status))
-    .reduce((sum, s) => sum + s._count.id, 0);
-  const issueOrders = ordersByStatus
-    .filter((s) => issueStatuses.includes(s.status))
-    .reduce((sum, s) => sum + s._count.id, 0);
+  const pendingOrders = ordersByStatus.filter((s) => pendingStatuses.includes(s.status)).reduce((sum, s) => sum + s._count.id, 0);
+  const issueOrders = ordersByStatus.filter((s) => issueStatuses.includes(s.status)).reduce((sum, s) => sum + s._count.id, 0);
 
   // Completion rate
   const completionRate = totalVolume > 0 ? (totalCompletedOrders / totalVolume) * 100 : 0;
+
+  // DERIVED METRICS (Optimization: Calculated in-memory to save DB queries)
+  const totalCashCollected = ordersByPaymentMethod.reduce((sum, p) => sum + parseFloat(p._sum.cashCollected?.toString() || '0'), 0);
+
+  const lowStockProductsDerived = productInventory
+    .filter((p) => p.stockFilled < 20)
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      stockFilled: p.stockFilled,
+      stockEmpty: p.stockEmpty,
+    }))
+    .sort((a, b) => a.stockFilled - b.stockFilled);
 
   return {
     overview: {
@@ -614,7 +589,7 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       })),
     },
     cashManagement: {
-      totalCashCollected: parseFloat(cashStats._sum.cashCollected?.toString() || '0'),
+      totalCashCollected,
       cashOrders: cashOrdersCount,
       pendingHandovers:
         Array.isArray(pendingHandovers) && pendingHandovers[0]
@@ -687,7 +662,7 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
         date: o.scheduledDate,
         amount: parseFloat(o.totalAmount.toString()),
       })),
-      lowStockProducts: lowStockProducts,
+      lowStockProducts: lowStockProductsDerived,
       highCreditCustomers: highCreditCustomers.map((c) => ({
         id: c.id,
         name: c.user.name,
