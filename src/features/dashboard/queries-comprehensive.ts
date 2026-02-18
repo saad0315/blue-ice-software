@@ -1,7 +1,7 @@
 import { CashHandoverStatus, ExpenseStatus, OrderStatus, PaymentMethod } from '@prisma/client';
 import { differenceInDays, format, subDays } from 'date-fns';
 
-import { toUtcStartOfDay, toUtcEndOfDay } from '@/lib/date-utils';
+import { toUtcEndOfDay, toUtcStartOfDay } from '@/lib/date-utils';
 import { db } from '@/lib/db';
 
 export async function getComprehensiveDashboardData(params?: { startDate?: Date; endDate?: Date }) {
@@ -157,7 +157,7 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
     ordersByPaymentMethod,
 
     // Cash management
-    cashStats,
+    _cashStats, // Renamed from cashStats (Calculated below)
     cashOrdersCount,
     pendingHandovers,
     verifiedHandovers, // New: Verified Cash
@@ -184,7 +184,7 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
 
     // Exceptions and alerts
     failedOrders,
-    lowStockProducts,
+    _lowStockProducts, // Renamed from lowStockProducts (Calculated below)
     highCreditCustomers,
   ] = await Promise.all([
     // Total Active Customers
@@ -235,13 +235,8 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
     }),
 
     // Cash management stats (Expected from Orders)
-    db.order.aggregate({
-      where: {
-        scheduledDate: { gte: startDate, lte: endDate },
-        status: OrderStatus.COMPLETED,
-      },
-      _sum: { cashCollected: true },
-    }),
+    // OPTIMIZATION: Derived from ordersByPaymentMethod to save a DB call
+    Promise.resolve(null),
 
     // Count of orders where cash was collected
     db.order.count({
@@ -403,18 +398,8 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
     }),
 
     // Low stock products (< 20)
-    db.product.findMany({
-      where: {
-        stockFilled: { lt: 20 },
-      },
-      select: {
-        id: true,
-        name: true,
-        stockFilled: true,
-        stockEmpty: true,
-      },
-      orderBy: { stockFilled: 'asc' },
-    }),
+    // OPTIMIZATION: Derived from productInventory to save a DB call
+    Promise.resolve(null),
 
     // High credit customers (approaching limit)
     db.customerProfile.findMany({
@@ -431,6 +416,28 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       take: 10,
     }),
   ]);
+
+  // OPTIMIZATION: Derive cashStats from ordersByPaymentMethod
+  const cashStats =
+    _cashStats ||
+    ({
+      _sum: {
+        cashCollected: ordersByPaymentMethod.reduce((sum, p) => sum + Number(p._sum.cashCollected || 0), 0),
+      },
+    } as any);
+
+  // OPTIMIZATION: Derive lowStockProducts from productInventory
+  const lowStockProducts =
+    _lowStockProducts ||
+    productInventory
+      .filter((p) => p.stockFilled < 20)
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        stockFilled: p.stockFilled,
+        stockEmpty: p.stockEmpty,
+      }))
+      .sort((a, b) => a.stockFilled - b.stockFilled);
 
   // Combine Trends
   const combinedRevenueTrend = [...historicalTrends, ...liveTrends].sort((a, b) => a.date.getTime() - b.date.getTime());
