@@ -1,7 +1,7 @@
 import { CashHandoverStatus, ExpenseStatus, OrderStatus, PaymentMethod } from '@prisma/client';
 import { differenceInDays, format, subDays } from 'date-fns';
 
-import { toUtcStartOfDay, toUtcEndOfDay } from '@/lib/date-utils';
+import { toUtcEndOfDay, toUtcStartOfDay } from '@/lib/date-utils';
 import { db } from '@/lib/db';
 
 export async function getComprehensiveDashboardData(params?: { startDate?: Date; endDate?: Date }) {
@@ -130,15 +130,6 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
   let prevDaysDiff = differenceInDays(endDate, startDate);
   if (prevDaysDiff === 0) prevDaysDiff = 1; // At least 1 day for comparison (e.g. Today vs Yesterday)
 
-  // Actually, differenceInDays returns integer. If start=end (same day), diff is 0.
-  // We want to subtract (diff + 1) days for strictly non-overlapping previous period of same duration?
-  // Or just diff?
-  // If range is [Today], length is 1 day. Prev should be [Yesterday].
-  // If range is [Oct 1 - Oct 30], length is 30 days.
-  // differenceInDays(Oct 30, Oct 1) = 29.
-  // We want 30 days prior.
-  // So prevDaysDiff should be `differenceInDays(...) + 1`.
-
   const periodLength = differenceInDays(endDate, startDate) + 1;
   const prevStartDate = subDays(startDate, periodLength);
   const prevEndDate = subDays(endDate, periodLength);
@@ -157,7 +148,7 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
     ordersByPaymentMethod,
 
     // Cash management
-    cashStats,
+    // cashStats removed (redundant)
     cashOrdersCount,
     pendingHandovers,
     verifiedHandovers, // New: Verified Cash
@@ -184,7 +175,7 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
 
     // Exceptions and alerts
     failedOrders,
-    lowStockProducts,
+    // lowStockProducts removed (redundant)
     highCreditCustomers,
   ] = await Promise.all([
     // Total Active Customers
@@ -234,14 +225,8 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       _sum: { cashCollected: true },
     }),
 
-    // Cash management stats (Expected from Orders)
-    db.order.aggregate({
-      where: {
-        scheduledDate: { gte: startDate, lte: endDate },
-        status: OrderStatus.COMPLETED,
-      },
-      _sum: { cashCollected: true },
-    }),
+    // Cash management stats (redundant, removed)
+    // db.order.aggregate({...}),
 
     // Count of orders where cash was collected
     db.order.count({
@@ -402,19 +387,8 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       orderBy: { scheduledDate: 'desc' },
     }),
 
-    // Low stock products (< 20)
-    db.product.findMany({
-      where: {
-        stockFilled: { lt: 20 },
-      },
-      select: {
-        id: true,
-        name: true,
-        stockFilled: true,
-        stockEmpty: true,
-      },
-      orderBy: { stockFilled: 'asc' },
-    }),
+    // Low stock products (< 20) (redundant, removed)
+    // db.product.findMany({...}),
 
     // High credit customers (approaching limit)
     db.customerProfile.findMany({
@@ -431,6 +405,22 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       take: 10,
     }),
   ]);
+
+  // Derive Cash Stats (Optimization)
+  // Replaces: db.order.aggregate({ _sum: { cashCollected: true } })
+  const totalCashCollected = ordersByPaymentMethod.reduce((sum, p) => sum + parseFloat(p._sum.cashCollected?.toString() || '0'), 0);
+
+  // Derive Low Stock Products (Optimization)
+  // Replaces: db.product.findMany({ where: { stockFilled: { lt: 20 } } })
+  const lowStockProducts = productInventory
+    .filter((p) => p.stockFilled < 20)
+    .sort((a, b) => a.stockFilled - b.stockFilled)
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      stockFilled: p.stockFilled,
+      stockEmpty: p.stockEmpty,
+    }));
 
   // Combine Trends
   const combinedRevenueTrend = [...historicalTrends, ...liveTrends].sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -527,23 +517,27 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
 
   // Get driver details for performance
   const driverIds = mergedDriverPerformance.map((d) => d.driverId).filter(Boolean) as string[];
-  const drivers = await db.driverProfile.findMany({
-    where: { id: { in: driverIds } },
-    select: {
-      id: true,
-      user: { select: { name: true } },
-    },
-  });
 
   // Get customer details for top customers
   const customerIds = topCustomers.map((c) => c.customerId);
-  const customers = await db.customerProfile.findMany({
-    where: { id: { in: customerIds } },
-    select: {
-      id: true,
-      user: { select: { name: true } },
-    },
-  });
+
+  // Parallelize detail lookups (Optimization)
+  const [drivers, customers] = await Promise.all([
+    db.driverProfile.findMany({
+      where: { id: { in: driverIds } },
+      select: {
+        id: true,
+        user: { select: { name: true } },
+      },
+    }),
+    db.customerProfile.findMany({
+      where: { id: { in: customerIds } },
+      select: {
+        id: true,
+        user: { select: { name: true } },
+      },
+    }),
+  ]);
 
   // Calculate percentages and comparisons
   const currentRevenueValue = totalRevenue;
@@ -558,12 +552,8 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
   const pendingStatuses = [OrderStatus.PENDING, OrderStatus.SCHEDULED, OrderStatus.IN_PROGRESS] as OrderStatus[];
   const issueStatuses = [OrderStatus.CANCELLED, OrderStatus.RESCHEDULED] as OrderStatus[];
 
-  const pendingOrders = ordersByStatus
-    .filter((s) => pendingStatuses.includes(s.status))
-    .reduce((sum, s) => sum + s._count.id, 0);
-  const issueOrders = ordersByStatus
-    .filter((s) => issueStatuses.includes(s.status))
-    .reduce((sum, s) => sum + s._count.id, 0);
+  const pendingOrders = ordersByStatus.filter((s) => pendingStatuses.includes(s.status)).reduce((sum, s) => sum + s._count.id, 0);
+  const issueOrders = ordersByStatus.filter((s) => issueStatuses.includes(s.status)).reduce((sum, s) => sum + s._count.id, 0);
 
   // Completion rate
   const completionRate = totalVolume > 0 ? (totalCompletedOrders / totalVolume) * 100 : 0;
@@ -614,7 +604,7 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       })),
     },
     cashManagement: {
-      totalCashCollected: parseFloat(cashStats._sum.cashCollected?.toString() || '0'),
+      totalCashCollected: totalCashCollected,
       cashOrders: cashOrdersCount,
       pendingHandovers:
         Array.isArray(pendingHandovers) && pendingHandovers[0]
