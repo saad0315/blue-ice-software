@@ -3,6 +3,7 @@ import { CustomerType, OrderStatus, PaymentMethod, Prisma } from '@prisma/client
 import { db } from '@/lib/db';
 import { sendPushNotification } from '@/lib/firebase-admin';
 import { emitOrderStatus } from '@/lib/socket-emitter';
+import { sendWhatsAppNotification } from '@/features/notifications/whatsapp';
 
 export async function getOrders(params: {
   search?: string;
@@ -1262,13 +1263,23 @@ export async function updateOrder(
     }
 
     // Get final order with relations for socket emission
+    // We include extra fields (cashBalance, bottleWallets) for the notification system
     const finalOrder = await tx.order.findUnique({
       where: { id },
       include: {
-        orderItems: true,
+        orderItems: {
+          include: {
+            product: { select: { name: true } },
+          },
+        },
         customer: {
           include: {
-            user: { select: { name: true } },
+            bottleWallets: {
+              include: {
+                product: { select: { name: true } },
+              },
+            },
+            user: { select: { name: true, phoneNumber: true } },
           },
         },
         driver: {
@@ -1293,6 +1304,33 @@ export async function updateOrder(
           driverName: finalOrder.driver?.user?.name,
           timestamp: new Date(),
         });
+
+        // ------------------------------------------------------------
+        // SEND WHATSAPP NOTIFICATION (If Completed)
+        // ------------------------------------------------------------
+        if (orderData.status === OrderStatus.COMPLETED) {
+          await sendWhatsAppNotification({
+            orderId: finalOrder.id,
+            readableId: finalOrder.readableId,
+            customerName: finalOrder.customer?.user?.name || 'Customer',
+            phoneNumber: finalOrder.customer?.user?.phoneNumber || '',
+            totalAmount: Number(finalOrder.totalAmount),
+            balance: {
+              current: Number(finalOrder.customer?.cashBalance || 0),
+              currency: 'PKR',
+            },
+            items: finalOrder.orderItems.map((item) => ({
+              productName: item.product.name,
+              quantity: item.quantity,
+              price: Number(item.priceAtTime),
+            })),
+            bottleWallet: finalOrder.customer?.bottleWallets.map((w) => ({
+              productName: w.product.name,
+              balance: w.balance,
+            })) || [],
+          });
+        }
+
       } catch (emitError) {
         // Log but don't fail the transaction
         console.warn('[ORDER_STATUS_EMIT_WARNING]:', emitError);
