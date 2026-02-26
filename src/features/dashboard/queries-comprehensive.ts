@@ -157,7 +157,7 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
     ordersByPaymentMethod,
 
     // Cash management
-    cashStats,
+    // cashStats, // REMOVED: Calculated in-memory from ordersByPaymentMethod
     cashOrdersCount,
     pendingHandovers,
     verifiedHandovers, // New: Verified Cash
@@ -184,7 +184,7 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
 
     // Exceptions and alerts
     failedOrders,
-    lowStockProducts,
+    // lowStockProducts, // REMOVED: Calculated in-memory from productInventory
     highCreditCustomers,
   ] = await Promise.all([
     // Total Active Customers
@@ -235,6 +235,8 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
     }),
 
     // Cash management stats (Expected from Orders)
+    // REMOVED: Redundant query. Can be derived from ordersByPaymentMethod.
+    /*
     db.order.aggregate({
       where: {
         scheduledDate: { gte: startDate, lte: endDate },
@@ -242,6 +244,7 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       },
       _sum: { cashCollected: true },
     }),
+    */
 
     // Count of orders where cash was collected
     db.order.count({
@@ -403,6 +406,8 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
     }),
 
     // Low stock products (< 20)
+    // REMOVED: Redundant query. Can be derived from productInventory.
+    /*
     db.product.findMany({
       where: {
         stockFilled: { lt: 20 },
@@ -415,6 +420,7 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       },
       orderBy: { stockFilled: 'asc' },
     }),
+    */
 
     // High credit customers (approaching limit)
     db.customerProfile.findMany({
@@ -431,6 +437,27 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       take: 10,
     }),
   ]);
+
+  // Derived Values (Optimizations)
+
+  // 1. Calculate cashStats from ordersByPaymentMethod
+  // ordersByPaymentMethod groups by paymentMethod and sums cashCollected.
+  // The original query summed cashCollected for ALL COMPLETED orders.
+  // This is mathematically equivalent to summing the group sums.
+  const totalCashCollected = ordersByPaymentMethod.reduce((sum, p) => sum + (Number(p._sum.cashCollected) || 0), 0);
+  const cashStats = { _sum: { cashCollected: totalCashCollected } };
+
+  // 2. Calculate lowStockProducts from productInventory
+  const lowStockProducts = productInventory
+    .filter((p) => p.stockFilled < 20)
+    .sort((a, b) => a.stockFilled - b.stockFilled)
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      stockFilled: p.stockFilled,
+      stockEmpty: p.stockEmpty,
+    }));
+
 
   // Combine Trends
   const combinedRevenueTrend = [...historicalTrends, ...liveTrends].sort((a, b) => a.date.getTime() - b.date.getTime());
