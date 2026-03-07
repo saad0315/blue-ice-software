@@ -148,9 +148,8 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
     totalCustomers,
     totalDrivers,
 
-    // Previous period revenue
-    prevRevenue,
-    prevOrders,
+    // Previous period stats (Revenue, Volume)
+    prevStats,
 
     // Order breakdown
     ordersByStatus,
@@ -197,20 +196,14 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       where: { user: { isActive: true } },
     }),
 
-    // Previous period revenue
-    db.order.aggregate({
+    // Previous period stats (Revenue, Volume)
+    db.order.groupBy({
+      by: ['status'],
       where: {
         scheduledDate: { gte: prevStartDate, lte: prevEndDate },
-        status: OrderStatus.COMPLETED,
       },
       _sum: { totalAmount: true },
-    }),
-
-    // Previous period orders (Volume)
-    db.order.count({
-      where: {
-        scheduledDate: { gte: prevStartDate, lte: prevEndDate },
-      },
+      _count: { id: true },
     }),
 
     // Orders by status (Raw query for amounts)
@@ -432,6 +425,13 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
     }),
   ]);
 
+  // Derived metrics from existing query results to avoid redundant database calls
+  const prevRevenueValue = prevStats.reduce(
+    (acc, curr) => (curr.status === OrderStatus.COMPLETED ? acc + parseFloat(curr._sum.totalAmount?.toString() || '0') : acc),
+    0,
+  );
+  const prevOrdersCount = prevStats.reduce((acc, curr) => acc + curr._count.id, 0);
+
   // Combine Trends
   const combinedRevenueTrend = [...historicalTrends, ...liveTrends].sort((a, b) => a.date.getTime() - b.date.getTime());
 
@@ -547,9 +547,9 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
 
   // Calculate percentages and comparisons
   const currentRevenueValue = totalRevenue;
-  const previousRevenueValue = parseFloat(prevRevenue._sum.totalAmount?.toString() || '0');
+  const previousRevenueValue = prevRevenueValue;
   const revenueChange = previousRevenueValue > 0 ? ((currentRevenueValue - previousRevenueValue) / previousRevenueValue) * 100 : 0;
-  const ordersChange = prevOrders > 0 ? ((totalVolume - prevOrders) / prevOrders) * 100 : 0;
+  const ordersChange = prevOrdersCount > 0 ? ((totalVolume - prevOrdersCount) / prevOrdersCount) * 100 : 0;
 
   // Calculate projected revenue (sum of ALL orders regardless of status)
   const projectedRevenue = ordersByStatus.reduce((sum, s) => sum + parseFloat(s._sum.totalAmount?.toString() || '0'), 0);
