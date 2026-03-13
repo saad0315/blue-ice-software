@@ -1,0 +1,3 @@
+## 2025-03-05 - Combine parallel database queries
+**Learning:** In dashboard views that use `Promise.all` with large arrays of `Prisma` queries, it is often possible to reduce database connections and load by combining queries. Specifically, previous period volume (`count`) and revenue (`aggregate sum`) can be grouped by status, reducing two queries to one. Further, specific subsets of data (like `lowStockProducts`) can be derived in memory from a full list (`productInventory`) that is already being requested, entirely eliminating redundant queries.
+**Action:** When working on analytical endpoints or dashboards, review the `Promise.all` array for queries that hit the same tables or can be derived from existing grouped/aggregate results.
