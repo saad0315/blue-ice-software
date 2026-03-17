@@ -1,0 +1,3 @@
+## 2024-10-24 - [Consolidating Dashboard Metric Queries via groupBy]
+**Learning:** Database queries fetching basic scalar metrics (e.g., total row count, active status row count, sum of a column based on a specific status) can be entirely eliminated if the application is already querying `groupBy` on that same status column. Iterating over the `groupBy` result array in-memory is dramatically faster and reduces the number of parallel database connections required.
+**Action:** When asked to optimize dashboard endpoints that display multiple high-level counts/sums alongside a categorical distribution, check if the counts/sums can be derived directly from the distribution's results instead of being fetched separately.

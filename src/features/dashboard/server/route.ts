@@ -15,24 +15,10 @@ const app = new Hono()
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(today.getDate() - 30);
 
-      const [customerCount, orderCount, activeOrderCount, revenueData, dailyRevenue, orderStatusDistribution] = await Promise.all([
+      // ⚡ Bolt: Consolidated redundant order counts and revenue queries into a single groupBy query
+      // by deriving orderCount, activeOrderCount, and totalRevenue in-memory from orderStatusDistribution.
+      const [customerCount, dailyRevenue, orderStatusDistribution] = await Promise.all([
         db.customerProfile.count(),
-        db.order.count(),
-        db.order.count({
-          where: {
-            status: {
-              notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED],
-            },
-          },
-        }),
-        db.order.aggregate({
-          where: {
-            status: OrderStatus.COMPLETED,
-          },
-          _sum: {
-            totalAmount: true,
-          },
-        }),
         // Revenue per day (last 30 days)
         db.$queryRaw`
           SELECT DATE("createdAt") as date, SUM("totalAmount") as amount
@@ -42,21 +28,41 @@ const app = new Hono()
           GROUP BY DATE("createdAt")
           ORDER BY DATE("createdAt") ASC
         `,
-        // Order Status Distribution
+        // Order Status Distribution (with revenue sum for in-memory derivation)
         db.order.groupBy({
           by: ['status'],
           _count: {
             id: true,
           },
+          _sum: {
+            totalAmount: true,
+          },
         }),
       ]);
+
+      // Derive metrics in-memory to avoid 3 redundant database queries
+      let orderCount = 0;
+      let activeOrderCount = 0;
+      let totalRevenue = 0;
+
+      for (const item of orderStatusDistribution) {
+        orderCount += item._count.id;
+
+        if (item.status !== OrderStatus.COMPLETED && item.status !== OrderStatus.CANCELLED) {
+          activeOrderCount += item._count.id;
+        }
+
+        if (item.status === OrderStatus.COMPLETED) {
+          totalRevenue += Number(item._sum.totalAmount || 0);
+        }
+      }
 
       return ctx.json({
         data: {
           customerCount,
           orderCount,
           activeOrderCount,
-          totalRevenue: revenueData._sum.totalAmount?.toString() || '0',
+          totalRevenue: totalRevenue.toString(),
           dailyRevenue: dailyRevenue as { date: Date; amount: number }[],
           orderStatusDistribution: orderStatusDistribution.map((item) => ({
             name: item.status,
