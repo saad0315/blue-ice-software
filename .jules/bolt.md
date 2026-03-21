@@ -1,0 +1,3 @@
+## 2025-02-27 - [Duplicate Database Queries in Single Route]
+**Learning:** In comprehensive data generation endpoints (like dashboards), the exact same database query (e.g., `db.dailyStats.findMany`) can often be accidentally issued multiple times if not carefully reviewed.
+**Action:** When working on complex data generation, always look for opportunities to cache and reuse the results of identical `.findMany` or aggregate queries inside variables rather than redundantly pinging the database within the same request lifecycle.
