@@ -1,0 +1,3 @@
+## 2026-03-22 - [Consolidate aggregate dashboard queries]
+**Learning:** Found a case where 4 separate database queries (two counts, one sum aggregate, and one group by) against the same table (Orders) could be consolidated into a single `groupBy` query with `_count` and `_sum` fields. The application code can then quickly derive the separate metrics by reducing the grouped results in-memory. This significantly reduces DB roundtrips and avoids redundant table scans on a high-traffic endpoint.
+**Action:** Always check if multiple simple aggregations on the same table can be replaced by a single comprehensive `groupBy` query, deriving specific subset counts/sums in-memory.
