@@ -1,7 +1,7 @@
 import { CashHandoverStatus, ExpenseStatus, OrderStatus, PaymentMethod } from '@prisma/client';
 import { differenceInDays, format, subDays } from 'date-fns';
 
-import { toUtcStartOfDay, toUtcEndOfDay } from '@/lib/date-utils';
+import { toUtcEndOfDay, toUtcStartOfDay } from '@/lib/date-utils';
 import { db } from '@/lib/db';
 
 export async function getComprehensiveDashboardData(params?: { startDate?: Date; endDate?: Date }) {
@@ -25,6 +25,9 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
   let historicalTrends: { date: Date; revenue: number; orders: number }[] = [];
   let historicalOrderBreakdown: Record<string, number> = {};
 
+  // Cache for historical stats to avoid redundant query later
+  let fetchedDailyStats: any[] = [];
+
   if (!isLiveOnly) {
     const dailyStats = await db.dailyStats.findMany({
       where: {
@@ -35,6 +38,8 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       },
       orderBy: { date: 'asc' },
     });
+
+    fetchedDailyStats = dailyStats;
 
     for (const stat of dailyStats) {
       const revenue = Number(stat.totalRevenue);
@@ -439,14 +444,7 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
   const combinedOrderTrends: any[] = [];
 
   if (!isLiveOnly) {
-    const dailyStats = await db.dailyStats.findMany({
-      where: {
-        date: { gte: startDate, lte: historicalEnd },
-      },
-      orderBy: { date: 'asc' },
-    });
-
-    dailyStats.forEach((stat) => {
+    fetchedDailyStats.forEach((stat) => {
       combinedOrderTrends.push({
         date: format(stat.date, 'MMM dd'),
         [OrderStatus.COMPLETED]: stat.ordersCompleted,
@@ -558,12 +556,8 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
   const pendingStatuses = [OrderStatus.PENDING, OrderStatus.SCHEDULED, OrderStatus.IN_PROGRESS] as OrderStatus[];
   const issueStatuses = [OrderStatus.CANCELLED, OrderStatus.RESCHEDULED] as OrderStatus[];
 
-  const pendingOrders = ordersByStatus
-    .filter((s) => pendingStatuses.includes(s.status))
-    .reduce((sum, s) => sum + s._count.id, 0);
-  const issueOrders = ordersByStatus
-    .filter((s) => issueStatuses.includes(s.status))
-    .reduce((sum, s) => sum + s._count.id, 0);
+  const pendingOrders = ordersByStatus.filter((s) => pendingStatuses.includes(s.status)).reduce((sum, s) => sum + s._count.id, 0);
+  const issueOrders = ordersByStatus.filter((s) => issueStatuses.includes(s.status)).reduce((sum, s) => sum + s._count.id, 0);
 
   // Completion rate
   const completionRate = totalVolume > 0 ? (totalCompletedOrders / totalVolume) * 100 : 0;
