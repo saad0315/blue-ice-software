@@ -1,7 +1,8 @@
 import { CashHandoverStatus, ExpenseStatus, OrderStatus, PaymentMethod } from '@prisma/client';
+import { type DailyStats } from '@prisma/client';
 import { differenceInDays, format, subDays } from 'date-fns';
 
-import { toUtcStartOfDay, toUtcEndOfDay } from '@/lib/date-utils';
+import { toUtcEndOfDay, toUtcStartOfDay } from '@/lib/date-utils';
 import { db } from '@/lib/db';
 
 export async function getComprehensiveDashboardData(params?: { startDate?: Date; endDate?: Date }) {
@@ -23,10 +24,11 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
   let historicalCompletedOrders = 0;
   let historicalTotalVolume = 0;
   let historicalTrends: { date: Date; revenue: number; orders: number }[] = [];
-  let historicalOrderBreakdown: Record<string, number> = {};
+
+  let cachedDailyStats: DailyStats[] = [];
 
   if (!isLiveOnly) {
-    const dailyStats = await db.dailyStats.findMany({
+    cachedDailyStats = await db.dailyStats.findMany({
       where: {
         date: {
           gte: startDate,
@@ -36,7 +38,7 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       orderBy: { date: 'asc' },
     });
 
-    for (const stat of dailyStats) {
+    for (const stat of cachedDailyStats) {
       const revenue = Number(stat.totalRevenue);
       historicalRevenue += revenue;
       historicalCompletedOrders += stat.ordersCompleted;
@@ -47,11 +49,6 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
         revenue,
         orders: stat.ordersCompleted,
       });
-
-      historicalOrderBreakdown[OrderStatus.COMPLETED] = (historicalOrderBreakdown[OrderStatus.COMPLETED] || 0) + stat.ordersCompleted;
-      historicalOrderBreakdown[OrderStatus.CANCELLED] = (historicalOrderBreakdown[OrderStatus.CANCELLED] || 0) + stat.ordersCancelled;
-      historicalOrderBreakdown[OrderStatus.PENDING] = (historicalOrderBreakdown[OrderStatus.PENDING] || 0) + stat.ordersPending;
-      historicalOrderBreakdown[OrderStatus.RESCHEDULED] = (historicalOrderBreakdown[OrderStatus.RESCHEDULED] || 0) + stat.ordersRescheduled;
     }
   }
 
@@ -60,7 +57,6 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
   let liveCompletedOrders = 0;
   let liveTotalVolume = 0;
   let liveTrends: { date: Date; revenue: number; orders: number }[] = [];
-  let liveOrderBreakdown: Record<string, number> = {};
 
   if (!isHistoricalOnly) {
     // Live Revenue
@@ -106,19 +102,6 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       revenue: Number(t.revenue || 0),
       orders: Number(t.orders || 0),
     }));
-
-    // Live Order Status Breakdown
-    const statusGroups = await db.order.groupBy({
-      by: ['status'],
-      where: {
-        scheduledDate: { gte: liveStart, lte: endDate },
-      },
-      _count: { id: true },
-    });
-
-    for (const group of statusGroups) {
-      liveOrderBreakdown[group.status] = group._count.id;
-    }
   }
 
   // 3. Combine Data
@@ -439,14 +422,7 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
   const combinedOrderTrends: any[] = [];
 
   if (!isLiveOnly) {
-    const dailyStats = await db.dailyStats.findMany({
-      where: {
-        date: { gte: startDate, lte: historicalEnd },
-      },
-      orderBy: { date: 'asc' },
-    });
-
-    dailyStats.forEach((stat) => {
+    cachedDailyStats.forEach((stat) => {
       combinedOrderTrends.push({
         date: format(stat.date, 'MMM dd'),
         [OrderStatus.COMPLETED]: stat.ordersCompleted,
@@ -558,12 +534,8 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
   const pendingStatuses = [OrderStatus.PENDING, OrderStatus.SCHEDULED, OrderStatus.IN_PROGRESS] as OrderStatus[];
   const issueStatuses = [OrderStatus.CANCELLED, OrderStatus.RESCHEDULED] as OrderStatus[];
 
-  const pendingOrders = ordersByStatus
-    .filter((s) => pendingStatuses.includes(s.status))
-    .reduce((sum, s) => sum + s._count.id, 0);
-  const issueOrders = ordersByStatus
-    .filter((s) => issueStatuses.includes(s.status))
-    .reduce((sum, s) => sum + s._count.id, 0);
+  const pendingOrders = ordersByStatus.filter((s) => pendingStatuses.includes(s.status)).reduce((sum, s) => sum + s._count.id, 0);
+  const issueOrders = ordersByStatus.filter((s) => issueStatuses.includes(s.status)).reduce((sum, s) => sum + s._count.id, 0);
 
   // Completion rate
   const completionRate = totalVolume > 0 ? (totalCompletedOrders / totalVolume) * 100 : 0;
