@@ -1,0 +1,3 @@
+## 2023-11-09 - [Consolidating Driver Stats Queries]
+**Learning:** Found an N+1 queries optimization pattern where multiple independent `db.order.count` and `db.order.aggregate` calls running in parallel for specific statuses and payment methods can be replaced efficiently with single `db.order.groupBy` calls. This significantly reduces database connection usage and speeds up responses on dashboards where metrics are frequently pulled.
+**Action:** Always check if multiple parallel `.count()` or `.aggregate()` calls on the same model but different fields or conditions can be collapsed into a single `.groupBy()` call and computed in-memory.
