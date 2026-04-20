@@ -1,7 +1,7 @@
 import { ExpenseStatus, OrderStatus, Prisma, UserRole } from '@prisma/client';
 
 import { hashPassword } from '@/lib/authenticate';
-import { toUtcStartOfDay, toUtcEndOfDay } from '@/lib/date-utils';
+import { toUtcEndOfDay, toUtcStartOfDay } from '@/lib/date-utils';
 import { db } from '@/lib/db';
 
 export async function createDriver(data: {
@@ -47,12 +47,12 @@ export async function getDrivers(params: { search?: string; page: number; limit:
 
   const where: Prisma.DriverProfileWhereInput = search
     ? {
-      OR: [
-        { user: { name: { contains: search, mode: 'insensitive' } } },
-        { user: { phoneNumber: { contains: search } } },
-        { vehicleNo: { contains: search, mode: 'insensitive' } },
-      ],
-    }
+        OR: [
+          { user: { name: { contains: search, mode: 'insensitive' } } },
+          { user: { phoneNumber: { contains: search } } },
+          { vehicleNo: { contains: search, mode: 'insensitive' } },
+        ],
+      }
     : {};
 
   // Use PKT-aware UTC boundaries for consistent date filtering
@@ -481,7 +481,7 @@ export async function getDriverDeliveries(
     startDate?: Date;
     endDate?: Date;
     status?: OrderStatus | 'ALL';
-  }
+  },
 ) {
   const { page, limit, startDate, endDate, status = OrderStatus.COMPLETED } = params;
   const skip = (page - 1) * limit;
