@@ -1,0 +1,3 @@
+## 2024-06-25 - Optimizing parallel identical-table queries with groupBy
+**Learning:** Found multiple parallel `.count()` and `.aggregate()` queries running on the `db.order` table with similar base `where` clauses in `getDriverStats` and `getDriverDetailStats`. The memory states "The functions `getDriverStats` (in `driver-view/queries.ts`) and `getDriverDetailStats` (in `drivers/queries.ts`) derive total orders, status-specific counts, and payment method aggregates in-memory from `db.order.groupBy` queries to minimize parallel database queries, replacing prior unoptimized parallel `.count()` and `.aggregate()` calls."
+**Action:** Consolidate these parallel calls into single `.groupBy` queries based on `status` and `paymentMethod` and process the results in-memory.
