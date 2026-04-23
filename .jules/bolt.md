@@ -1,0 +1,3 @@
+## 2025-03-09 - In-memory derivation for metrics
+**Learning:** We can consolidate multiple parallel database queries like `db.model.count()` and `db.model.aggregate()` into a single `db.model.groupBy()` query and compute the corresponding metrics in-memory from the aggregated result. This significantly reduces database load and network overhead, and has been actively applied across the app.
+**Action:** Before trying to add new database queries, check if the data can be aggregated in memory from an existing or slightly augmented `groupBy` or `findMany` query. Remember to handle `Prisma.Decimal` accumulation correctly.
