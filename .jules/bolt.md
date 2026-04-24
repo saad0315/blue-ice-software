@@ -1,0 +1,3 @@
+## 2024-05-23 - Avoid redundant database queries by deriving from groupBy
+**Learning:** In the dashboard queries, we have parallel `.aggregate` and `.count` queries for cashStats that can be calculated entirely in-memory from the `ordersByPaymentMethod` `.groupBy` result, saving parallel database queries without changing the result.
+**Action:** Consolidate multiple aggregate/count queries on the same table with the same base filters into a single `groupBy`, deriving the specific aggregates or counts in memory later. For conditional logic (e.g. `cashCollected > 0`), row-level granularity is required, but sum aggregations map perfectly.
