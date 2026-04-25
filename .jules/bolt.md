@@ -1,0 +1,3 @@
+## 2025-04-25 - Grouping Prisma DB Queries
+**Learning:** `getDriverStats` in `src/features/driver-view/queries.ts` makes many separate `db.order.count` and `db.order.aggregate` calls to fetch order counts for different statuses and aggregated cash sums by payment methods. They all query the same base entity (`db.order`) with the same date/driver filters, leading to N parallel queries which is inefficient.
+**Action:** Consolidate multiple parallel `.count()` and `.aggregate()` queries that filter on the same base entity into single `.groupBy()` queries, aggregating the specific category totals in-memory.
