@@ -1,0 +1,3 @@
+## 2024-05-18 - Dashboard endpoint derivation
+**Learning:** The dashboard `GET /` endpoint in `src/features/dashboard/server/route.ts` derives `orderCount`, `activeOrderCount`, and `totalRevenue` metrics in-memory from the `orderStatusDistribution` (`db.order.groupBy`) query to minimize database requests. I've observed these memory derivation patterns exist natively in `queries-comprehensive.ts` but the default dashboard can also be optimized.
+**Action:** When replacing parallel count/aggregate queries, check if the data exists in an existing `groupBy` query and derive it using `reduce` to eliminate unnecessary database calls.
