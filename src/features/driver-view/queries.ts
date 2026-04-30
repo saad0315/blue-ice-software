@@ -1,7 +1,7 @@
 import { OrderStatus, PaymentMethod } from '@prisma/client';
 
+import { toUtcEndOfDay, toUtcStartOfDay } from '@/lib/date-utils';
 import { db } from '@/lib/db';
-import { toUtcStartOfDay, toUtcEndOfDay } from '@/lib/date-utils';
 
 export async function getDriverStats(driverId: string, date: Date) {
   // Use PKT-aware UTC boundaries for consistent date filtering
@@ -15,11 +15,7 @@ export async function getDriverStats(driverId: string, date: Date) {
   };
 
   const [
-    totalOrders,
-    completedOrders,
-    pendingOrders,
-    cancelledOrders,
-    rescheduledOrders,
+    ordersByStatus,
     cashOrders,
     onlineOrders,
     creditOrders,
@@ -30,17 +26,11 @@ export async function getDriverStats(driverId: string, date: Date) {
     unlinkedExpensesData,
   ] = await Promise.all([
     // Order counts
-    db.order.count({ where: { driverId, scheduledDate: { gte: startOfDay, lte: endOfDay } } }),
-    db.order.count({ where: completedOrdersWhere }),
-    db.order.count({
-      where: {
-        driverId,
-        scheduledDate: { gte: startOfDay, lte: endOfDay },
-        status: { in: [OrderStatus.PENDING, OrderStatus.SCHEDULED, OrderStatus.IN_PROGRESS] },
-      },
+    db.order.groupBy({
+      by: ['status'],
+      where: { driverId, scheduledDate: { gte: startOfDay, lte: endOfDay } },
+      _count: { id: true },
     }),
-    db.order.count({ where: { driverId, scheduledDate: { gte: startOfDay, lte: endOfDay }, status: OrderStatus.CANCELLED } }),
-    db.order.count({ where: { driverId, scheduledDate: { gte: startOfDay, lte: endOfDay }, status: OrderStatus.RESCHEDULED } }),
 
     // Financial breakdown by payment method
     db.order.aggregate({
@@ -109,6 +99,14 @@ export async function getDriverStats(driverId: string, date: Date) {
       _sum: { amount: true },
     }),
   ]);
+
+  const totalOrders = ordersByStatus.reduce((acc, curr) => acc + curr._count.id, 0);
+  const completedOrders = ordersByStatus.find((s) => s.status === OrderStatus.COMPLETED)?._count.id || 0;
+  const pendingOrders = ordersByStatus
+    .filter((s) => [OrderStatus.PENDING, OrderStatus.SCHEDULED, OrderStatus.IN_PROGRESS].includes(s.status as any))
+    .reduce((acc, curr) => acc + curr._count.id, 0);
+  const cancelledOrders = ordersByStatus.find((s) => s.status === OrderStatus.CANCELLED)?._count.id || 0;
+  const rescheduledOrders = ordersByStatus.find((s) => s.status === OrderStatus.RESCHEDULED)?._count.id || 0;
 
   const cashCollected = parseFloat(cashOrders._sum.cashCollected?.toString() || '0');
   const onlineCollected = parseFloat(onlineOrders._sum.cashCollected?.toString() || '0');
