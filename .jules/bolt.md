@@ -1,0 +1,3 @@
+## $(date +%Y-%m-%d) - [Optimize Dashboard/Driver Analytics Parallel Counts]
+**Learning:** This application heavily utilized large `Promise.all` blocks containing multiple parallel `.count()` and `.aggregate()` database requests for single tables (e.g., finding the count of Orders for 5 different statuses). This creates large connection pool overhead (N+1 parallel queries) and high database load.
+**Action:** Replace parallel `db.entity.count({ where: { status: X } })` patterns with single `db.entity.groupBy({ by: ['status'] })` aggregations, extracting the individual counts locally via reduce/find on the grouped array. Reduces DB queries significantly without sacrificing logic.
