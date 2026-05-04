@@ -1,0 +1,3 @@
+## 2024-05-18 - Replacing Multiple db.order.count with groupBy
+**Learning:** Found an N+1/parallel-query antipattern where driver statistics trigger 9 separate `db.order` queries (counts and aggregates for financial breakdowns) concurrently for the same `driverId` and date range in `src/features/driver-view/queries.ts` (`getDriverStats`). A similar pattern exists in `getDriverDetailStats` in `src/features/drivers/queries.ts`. The database overhead can be reduced significantly by collapsing status counts and payment method aggregations into `groupBy` queries.
+**Action:** Replace parallel `.count()` and `.aggregate()` queries matching similar shapes with single `.groupBy()` queries. Compute exact metrics locally in memory from the aggregated database groupings.
