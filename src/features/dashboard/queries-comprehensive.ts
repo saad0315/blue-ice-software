@@ -1,7 +1,7 @@
 import { CashHandoverStatus, ExpenseStatus, OrderStatus, PaymentMethod } from '@prisma/client';
 import { differenceInDays, format, subDays } from 'date-fns';
 
-import { toUtcStartOfDay, toUtcEndOfDay } from '@/lib/date-utils';
+import { toUtcEndOfDay, toUtcStartOfDay } from '@/lib/date-utils';
 import { db } from '@/lib/db';
 
 export async function getComprehensiveDashboardData(params?: { startDate?: Date; endDate?: Date }) {
@@ -148,9 +148,8 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
     totalCustomers,
     totalDrivers,
 
-    // Previous period revenue
-    prevRevenue,
-    prevOrders,
+    // Previous period stats
+    prevStats,
 
     // Order breakdown
     ordersByStatus,
@@ -197,20 +196,14 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
       where: { user: { isActive: true } },
     }),
 
-    // Previous period revenue
-    db.order.aggregate({
+    // Previous period stats (Consolidated Revenue & Volume)
+    db.order.groupBy({
+      by: ['status'],
       where: {
         scheduledDate: { gte: prevStartDate, lte: prevEndDate },
-        status: OrderStatus.COMPLETED,
       },
+      _count: { id: true },
       _sum: { totalAmount: true },
-    }),
-
-    // Previous period orders (Volume)
-    db.order.count({
-      where: {
-        scheduledDate: { gte: prevStartDate, lte: prevEndDate },
-      },
     }),
 
     // Orders by status (Raw query for amounts)
@@ -547,9 +540,16 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
 
   // Calculate percentages and comparisons
   const currentRevenueValue = totalRevenue;
-  const previousRevenueValue = parseFloat(prevRevenue._sum.totalAmount?.toString() || '0');
+
+  // Derive previous values from prevStats
+  const previousRevenueValue = prevStats
+    .filter((s) => s.status === OrderStatus.COMPLETED)
+    .reduce((sum, s) => sum + parseFloat(s._sum?.totalAmount?.toString() || '0'), 0);
+
+  const prevOrdersTotal = prevStats.reduce((sum, s) => sum + s._count.id, 0);
+
   const revenueChange = previousRevenueValue > 0 ? ((currentRevenueValue - previousRevenueValue) / previousRevenueValue) * 100 : 0;
-  const ordersChange = prevOrders > 0 ? ((totalVolume - prevOrders) / prevOrders) * 100 : 0;
+  const ordersChange = prevOrdersTotal > 0 ? ((totalVolume - prevOrdersTotal) / prevOrdersTotal) * 100 : 0;
 
   // Calculate projected revenue (sum of ALL orders regardless of status)
   const projectedRevenue = ordersByStatus.reduce((sum, s) => sum + parseFloat(s._sum.totalAmount?.toString() || '0'), 0);
@@ -558,12 +558,8 @@ export async function getComprehensiveDashboardData(params?: { startDate?: Date;
   const pendingStatuses = [OrderStatus.PENDING, OrderStatus.SCHEDULED, OrderStatus.IN_PROGRESS] as OrderStatus[];
   const issueStatuses = [OrderStatus.CANCELLED, OrderStatus.RESCHEDULED] as OrderStatus[];
 
-  const pendingOrders = ordersByStatus
-    .filter((s) => pendingStatuses.includes(s.status))
-    .reduce((sum, s) => sum + s._count.id, 0);
-  const issueOrders = ordersByStatus
-    .filter((s) => issueStatuses.includes(s.status))
-    .reduce((sum, s) => sum + s._count.id, 0);
+  const pendingOrders = ordersByStatus.filter((s) => pendingStatuses.includes(s.status)).reduce((sum, s) => sum + s._count.id, 0);
+  const issueOrders = ordersByStatus.filter((s) => issueStatuses.includes(s.status)).reduce((sum, s) => sum + s._count.id, 0);
 
   // Completion rate
   const completionRate = totalVolume > 0 ? (totalCompletedOrders / totalVolume) * 100 : 0;
