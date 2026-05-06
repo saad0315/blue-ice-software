@@ -1,0 +1,5 @@
+## 2024-05-23 - Consolidate parallel aggregate database queries into groupBy
+
+**Learning:** In `getComprehensiveDashboardData`, we execute multiple parallel `.count()` and `.aggregate()` queries against the `Order` table for the exact same date ranges (e.g., previous period stats for revenue and volume). Executing multiple parallel aggregate queries that filter on the exact same base conditions causes redundant database scans. By consolidating these into a single `.groupBy()` query on a low-cardinality field like `status`, we can retrieve all the necessary data points (counts and sums) in a single database round-trip and quickly compute the final metrics in-memory.
+
+**Action:** Replaced sequential `prevRevenue` (`db.order.aggregate`) and `prevOrders` (`db.order.count`) queries with a single `db.order.groupBy` query (`prevStats`) on the `status` field. Derived the total revenue and total volume in-memory. This reduces database query load during the large `Promise.all` execution without any loss of data precision.
