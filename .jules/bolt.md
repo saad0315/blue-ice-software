@@ -1,0 +1,3 @@
+## 2024-05-08 - Consolidating parallel Prisma queries into single groupBy
+**Learning:** The application frequently executes multiple parallel `db.model.count()` and `db.model.aggregate()` queries that filter on the same base entity but different categories (e.g., status, payment method). This leads to N parallel database connections where 1 would suffice, potentially exhausting the connection pool and increasing latency.
+**Action:** Consolidate these into single `.groupBy()` queries and compute the specific category totals in-memory using `.reduce()` to minimize DB roundtrips and connection pool exhaustion.
