@@ -1,5 +1,5 @@
 import { zValidator } from '@hono/zod-validator';
-import { OrderStatus, UserRole } from '@prisma/client';
+import { OrderStatus, Prisma, UserRole } from '@prisma/client';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
@@ -15,24 +15,9 @@ const app = new Hono()
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(today.getDate() - 30);
 
-      const [customerCount, orderCount, activeOrderCount, revenueData, dailyRevenue, orderStatusDistribution] = await Promise.all([
+      // ⚡ Bolt: Consolidated order metrics (count, active count, revenue) into a single groupBy query
+      const [customerCount, dailyRevenue, orderStatusDistribution] = await Promise.all([
         db.customerProfile.count(),
-        db.order.count(),
-        db.order.count({
-          where: {
-            status: {
-              notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED],
-            },
-          },
-        }),
-        db.order.aggregate({
-          where: {
-            status: OrderStatus.COMPLETED,
-          },
-          _sum: {
-            totalAmount: true,
-          },
-        }),
         // Revenue per day (last 30 days)
         db.$queryRaw`
           SELECT DATE("createdAt") as date, SUM("totalAmount") as amount
@@ -48,15 +33,33 @@ const app = new Hono()
           _count: {
             id: true,
           },
+          _sum: {
+            totalAmount: true,
+          },
         }),
       ]);
+
+      let orderCount = 0;
+      let activeOrderCount = 0;
+      let totalRevenueDecimal = new Prisma.Decimal(0);
+      const inactiveStatuses = [OrderStatus.COMPLETED, OrderStatus.CANCELLED];
+
+      orderStatusDistribution.forEach((group) => {
+        orderCount += group._count.id;
+        if (!inactiveStatuses.includes(group.status)) {
+          activeOrderCount += group._count.id;
+        }
+        if (group.status === OrderStatus.COMPLETED && group._sum?.totalAmount) {
+          totalRevenueDecimal = totalRevenueDecimal.add(group._sum.totalAmount);
+        }
+      });
 
       return ctx.json({
         data: {
           customerCount,
           orderCount,
           activeOrderCount,
-          totalRevenue: revenueData._sum.totalAmount?.toString() || '0',
+          totalRevenue: totalRevenueDecimal.toString(),
           dailyRevenue: dailyRevenue as { date: Date; amount: number }[],
           orderStatusDistribution: orderStatusDistribution.map((item) => ({
             name: item.status,
