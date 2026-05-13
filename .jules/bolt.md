@@ -1,0 +1,3 @@
+## 2025-03-05 - [Consolidating Parallel Prisma Queries]
+**Learning:** `getDriverStats` (in `driver-view/queries.ts`) and `getDriverDetailStats` (in `drivers/queries.ts`) were making multiple parallel `db.order.count()` and `db.order.aggregate()` calls to retrieve counts and sums for specific statuses and payment methods. This creates unnecessary overhead and concurrent connections to the database.
+**Action:** Replace multiple parallel queries with a single `db.order.groupBy()` call, and derive the specific categorized metrics in memory. This improves DB performance without sacrificing clarity.
