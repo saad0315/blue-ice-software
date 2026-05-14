@@ -1,0 +1,4 @@
+## 2024-05-14 - Optimize Driver Stats Calculation
+**Learning:** Consolidating multiple `db.order.count` and `db.order.aggregate` calls that filter on the same base criteria (`driverId` and `scheduledDate`) into a single `db.order.groupBy` query with multiple aggregations (like `_count: { id: true }` and `_sum: { cashCollected: true }`) is highly efficient. When grouping by enum-like fields (`status` and `paymentMethod`), calculating derived values (like total completed orders or total cash collected) in-memory avoids multiple database roundtrips.
+
+**Action:** Look for instances where multiple queries filter on the same root context but count/aggregate different statuses or categories. Replace them with `groupBy` and derive the specifics iteratively in code. Be mindful of Prisma nullability for aggregates like `_sum.cashCollected` and use proper fallback values (`|| 0` or optional chaining) before calculation.
