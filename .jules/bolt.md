@@ -1,0 +1,3 @@
+## 2026-05-15 - [Driver View Stats Performance Optimization]
+**Learning:** Consolidated parallel database count and aggregate queries into a single groupBy query reduces the overhead of database connections and redundant base filters. By combining 5 count and 4 aggregate queries into 2 groupBy queries in `getDriverStats`, we can avoid N+1 and parallel query bloat for similar data slices.
+**Action:** Use Prisma's `groupBy` combined with in-memory derivation when fetching multiple aggregated slices (like status counts or payment method totals) of the same entity set to improve performance without losing readability.
