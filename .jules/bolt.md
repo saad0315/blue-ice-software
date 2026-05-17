@@ -1,0 +1,4 @@
+
+## 2024-05-18 - Replacing parallel independent aggregates with single groupBy
+**Learning:** This codebase previously had performance patterns where dashboard or metric functions executed multiple independent `db.model.count()` or `db.model.aggregate()` queries running in `Promise.all()`, applying overlapping where conditions across different statuses or categories.
+**Action:** Consolidate these queries into a single `db.model.groupBy()` by the required categorization fields and iterate over the aggregated result array in-memory to accumulate metrics. This reduces DB roundtrips and optimizes database connection scaling when many driver views/dashboards are fetched simultaneously. Always evaluate variables dependent on the original counts (e.g. counting by specific Payment Methods) when writing the in-memory JavaScript loops.
