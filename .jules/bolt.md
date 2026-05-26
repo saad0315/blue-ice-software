@@ -1,0 +1,3 @@
+## 2024-05-26 - Consolidate multiple status count queries
+**Learning:** Performing multiple independent `db.model.count` queries with overlapping conditions but different status filters (e.g. for `totalOrders`, `completedOrders`, `pendingOrders`, etc.) on the same table causes unnecessary database round-trips and hurts performance.
+**Action:** Replace multiple parallel `count` queries with a single `db.model.groupBy({ by: ['status'] })` and aggregate the distinct status counts and the total count in memory. Ensure `(group.status as any)` is used to satisfy TypeScript compiler when checking against enum values if necessary.
