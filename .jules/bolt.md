@@ -1,0 +1,3 @@
+## 2025-03-02 - Optimize main dashboard endpoint to remove redundant queries
+**Learning:** The dashboard `GET /` endpoint in `src/features/dashboard/server/route.ts` was executing 6 parallel database queries, including full table `.count()` and `.aggregate()` calls on `db.order`, when the same data is already available via the `db.order.groupBy({ by: ['status'] })` query which runs in the same Promise.all.
+**Action:** When working on dashboard metrics, avoid parallel `.count()` and `.aggregate()` queries if there is already a `.groupBy()` query on the same table grouping by status. Derive the metrics (total count, active count, total revenue) in-memory in the application logic from the grouped results.
