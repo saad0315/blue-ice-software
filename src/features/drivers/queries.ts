@@ -1,7 +1,7 @@
 import { ExpenseStatus, OrderStatus, Prisma, UserRole } from '@prisma/client';
 
 import { hashPassword } from '@/lib/authenticate';
-import { toUtcStartOfDay, toUtcEndOfDay } from '@/lib/date-utils';
+import { toUtcEndOfDay, toUtcStartOfDay } from '@/lib/date-utils';
 import { db } from '@/lib/db';
 
 export async function createDriver(data: {
@@ -47,12 +47,12 @@ export async function getDrivers(params: { search?: string; page: number; limit:
 
   const where: Prisma.DriverProfileWhereInput = search
     ? {
-      OR: [
-        { user: { name: { contains: search, mode: 'insensitive' } } },
-        { user: { phoneNumber: { contains: search } } },
-        { vehicleNo: { contains: search, mode: 'insensitive' } },
-      ],
-    }
+        OR: [
+          { user: { name: { contains: search, mode: 'insensitive' } } },
+          { user: { phoneNumber: { contains: search } } },
+          { vehicleNo: { contains: search, mode: 'insensitive' } },
+        ],
+      }
     : {};
 
   // Use PKT-aware UTC boundaries for consistent date filtering
@@ -270,20 +270,7 @@ export async function getDriverDetailStats(driverId: string, params?: { startDat
   };
 
   // Fetch all statistics in parallel
-  const [
-    driver,
-    totalOrders,
-    completedOrders,
-    pendingOrders,
-    cancelledOrders,
-    rescheduledOrders,
-    financialStats,
-    bottleStats,
-    recentOrders,
-    allTimeStats,
-    todayStats,
-    expenseStats,
-  ] = await Promise.all([
+  const [driver, ordersGrouped, bottleStats, recentOrders, allTimeStats, todayStats, expenseStats] = await Promise.all([
     // Driver basic info
     db.driverProfile.findUnique({
       where: { id: driverId },
@@ -302,22 +289,16 @@ export async function getDriverDetailStats(driverId: string, params?: { startDat
       },
     }),
 
-    // Order counts for selected period
-    db.order.count({ where: whereCondition }),
-    db.order.count({ where: completedWhereCondition }),
-    db.order.count({ where: { ...whereCondition, status: { in: [OrderStatus.SCHEDULED, OrderStatus.IN_PROGRESS] } } }),
-    db.order.count({ where: { ...whereCondition, status: OrderStatus.CANCELLED } }),
-    db.order.count({ where: { ...whereCondition, status: OrderStatus.RESCHEDULED } }),
-
-    // Financial statistics
-    db.order.aggregate({
-      where: completedWhereCondition,
+    // Consolidate Order counts and Financial statistics into one query
+    db.order.groupBy({
+      by: ['status'],
+      where: whereCondition,
+      _count: {
+        id: true,
+      },
       _sum: {
         cashCollected: true,
         totalAmount: true,
-      },
-      _avg: {
-        cashCollected: true,
       },
     }),
 
@@ -407,6 +388,34 @@ export async function getDriverDetailStats(driverId: string, params?: { startDat
     throw new Error('Driver not found');
   }
 
+  let totalOrders = 0;
+  let completedOrders = 0;
+  let pendingOrders = 0;
+  let cancelledOrders = 0;
+  let rescheduledOrders = 0;
+
+  let totalCashCollected = new Prisma.Decimal(0);
+  let totalRevenue = new Prisma.Decimal(0);
+
+  ordersGrouped.forEach((group) => {
+    const count = group._count.id;
+    totalOrders += count;
+
+    if (group.status === OrderStatus.COMPLETED) {
+      completedOrders += count;
+      totalCashCollected = totalCashCollected.plus(group._sum.cashCollected || new Prisma.Decimal(0));
+      totalRevenue = totalRevenue.plus(group._sum.totalAmount || new Prisma.Decimal(0));
+    } else if ([OrderStatus.SCHEDULED, OrderStatus.IN_PROGRESS].includes(group.status as any)) {
+      pendingOrders += count;
+    } else if (group.status === OrderStatus.CANCELLED) {
+      cancelledOrders += count;
+    } else if (group.status === OrderStatus.RESCHEDULED) {
+      rescheduledOrders += count;
+    }
+  });
+
+  const averageCashPerDelivery = completedOrders > 0 ? (parseFloat(totalCashCollected.toString()) / completedOrders).toFixed(2) : '0';
+
   return {
     driver,
     period: {
@@ -422,9 +431,9 @@ export async function getDriverDetailStats(driverId: string, params?: { startDat
       completionRate: totalOrders > 0 ? Math.round((completedOrders / totalOrders) * 100) : 0,
     },
     financial: {
-      totalCashCollected: financialStats._sum.cashCollected?.toString() || '0',
-      totalRevenue: financialStats._sum.totalAmount?.toString() || '0',
-      averageCashPerDelivery: financialStats._avg.cashCollected?.toString() || '0',
+      totalCashCollected: totalCashCollected.toString(),
+      totalRevenue: totalRevenue.toString(),
+      averageCashPerDelivery: averageCashPerDelivery,
     },
     bottles: {
       totalFilledGiven: bottleStats._sum.filledGiven || 0,
@@ -481,7 +490,7 @@ export async function getDriverDeliveries(
     startDate?: Date;
     endDate?: Date;
     status?: OrderStatus | 'ALL';
-  }
+  },
 ) {
   const { page, limit, startDate, endDate, status = OrderStatus.COMPLETED } = params;
   const skip = (page - 1) * limit;
