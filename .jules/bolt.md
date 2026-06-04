@@ -1,0 +1,3 @@
+## 2024-06-04 - Optimize Dashboard Query Count
+**Learning:** Consolidating multiple `.count()` and `.aggregate()` queries that share the same base model but vary only by status into a single `.groupBy()` query significantly reduces database load and network latency by pushing the grouping to the database and deriving specific aggregates in memory.
+**Action:** When seeing parallel `db.model.count({ where: { status: 'X' } })` calls alongside `db.model.groupBy({ by: ['status'] })`, merge them by evaluating the returned status groups in application code instead of issuing separate database queries.
