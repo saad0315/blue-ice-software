@@ -15,16 +15,10 @@ const app = new Hono()
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(today.getDate() - 30);
 
-      const [customerCount, orderCount, activeOrderCount, revenueData, dailyRevenue, orderStatusDistribution] = await Promise.all([
+      // ⚡ Bolt: Consolidating parallel order.count and order.groupBy queries
+      // to reduce DB load by deriving counts from the single status distribution query
+      const [customerCount, revenueData, dailyRevenue, orderStatusDistribution] = await Promise.all([
         db.customerProfile.count(),
-        db.order.count(),
-        db.order.count({
-          where: {
-            status: {
-              notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED],
-            },
-          },
-        }),
         db.order.aggregate({
           where: {
             status: OrderStatus.COMPLETED,
@@ -51,6 +45,24 @@ const app = new Hono()
         }),
       ]);
 
+      // Calculate total and active orders in memory from the grouped data
+      let orderCount = 0;
+      let activeOrderCount = 0;
+
+      const mappedOrderStatusDistribution = orderStatusDistribution.map((item) => {
+        const count = item._count.id;
+        orderCount += count;
+
+        if (![OrderStatus.COMPLETED, OrderStatus.CANCELLED].includes(item.status as any)) {
+          activeOrderCount += count;
+        }
+
+        return {
+          name: item.status,
+          value: count,
+        };
+      });
+
       return ctx.json({
         data: {
           customerCount,
@@ -58,10 +70,7 @@ const app = new Hono()
           activeOrderCount,
           totalRevenue: revenueData._sum.totalAmount?.toString() || '0',
           dailyRevenue: dailyRevenue as { date: Date; amount: number }[],
-          orderStatusDistribution: orderStatusDistribution.map((item) => ({
-            name: item.status,
-            value: item._count.id,
-          })),
+          orderStatusDistribution: mappedOrderStatusDistribution,
         },
       });
     } catch (error) {
