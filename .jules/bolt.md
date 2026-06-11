@@ -1,0 +1,3 @@
+## 2024-05-18 - Optimize Driver Stats Queries
+**Learning:** Found multiple parallel unoptimized `.count()` and `.aggregate()` calls on `db.order` in `getDriverStats` and `getDriverDetailStats` methods in `src/features/driver-view/queries.ts` and `src/features/drivers/queries.ts`. This causes N+1 like query problems and unnecessary database load. We can consolidate them using `db.order.groupBy()` for status and payment methods to improve performance drastically.
+**Action:** Replace parallel `db.order.count` and `db.order.aggregate` calls filtering on `status` and `paymentMethod` with single `db.order.groupBy` calls, and aggregate the metrics in-memory to reduce database requests.
