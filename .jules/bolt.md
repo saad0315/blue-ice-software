@@ -1,0 +1,4 @@
+
+## 2024-05-XX - Consolidating Multiple Prisma .count() and .aggregate() Queries
+**Learning:** Consolidating multiple independent `db.model.count()` or `db.model.aggregate()` database queries into single `db.model.groupBy` queries (grouping by enum flags like status or payment method) is highly effective for reducing database overhead in dashboard data aggregation.
+**Action:** When creating in-memory mappings from Prisma `groupBy` aggregates, calculate overall total counts by summing `group._count._all` with array `.reduce()`, and extract specific groups robustly using `.find()`. Use optional chaining with fallback defaults (`?._count._all || 0`) because `groupBy` won't return results for categories that have a count of zero. Always place these unified queries inside existing `Promise.all` blocks to maintain maximum concurrency with other operations.
