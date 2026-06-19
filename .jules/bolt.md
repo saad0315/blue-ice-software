@@ -1,0 +1,3 @@
+## 2024-03-24 - Consolidated Prisma aggregate and count queries in driver queries
+**Learning:** Found multiple parallel unoptimized `.count()` and `.aggregate()` calls filtering on the same base `order` table in `getDriverDetailStats` (src/features/drivers/queries.ts). This causes repetitive redundant DB hits that scale with the number of status checks requested.
+**Action:** When filtering by various `status` constraints (e.g. counting pending, scheduled, completed, etc.), replace multiple `.count()` calls with a single `.groupBy({ by: ['status'], _count: { _all: true }, _sum: {...} })` and derive all the distinct status counts and sums locally in memory using the aggregated `groupBy` results.
