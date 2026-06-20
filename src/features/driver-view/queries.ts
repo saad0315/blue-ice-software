@@ -1,7 +1,7 @@
 import { OrderStatus, PaymentMethod } from '@prisma/client';
 
+import { toUtcEndOfDay, toUtcStartOfDay } from '@/lib/date-utils';
 import { db } from '@/lib/db';
-import { toUtcStartOfDay, toUtcEndOfDay } from '@/lib/date-utils';
 
 export async function getDriverStats(driverId: string, date: Date) {
   // Use PKT-aware UTC boundaries for consistent date filtering
@@ -14,106 +14,109 @@ export async function getDriverStats(driverId: string, date: Date) {
     status: OrderStatus.COMPLETED,
   };
 
-  const [
-    totalOrders,
-    completedOrders,
-    pendingOrders,
-    cancelledOrders,
-    rescheduledOrders,
-    cashOrders,
-    onlineOrders,
-    creditOrders,
-    prepaidOrders,
-    expenseData,
-    bottleData,
-    unlinkedOrdersData,
-    unlinkedExpensesData,
-  ] = await Promise.all([
-    // Order counts
-    db.order.count({ where: { driverId, scheduledDate: { gte: startOfDay, lte: endOfDay } } }),
-    db.order.count({ where: completedOrdersWhere }),
-    db.order.count({
-      where: {
-        driverId,
-        scheduledDate: { gte: startOfDay, lte: endOfDay },
-        status: { in: [OrderStatus.PENDING, OrderStatus.SCHEDULED, OrderStatus.IN_PROGRESS] },
-      },
-    }),
-    db.order.count({ where: { driverId, scheduledDate: { gte: startOfDay, lte: endOfDay }, status: OrderStatus.CANCELLED } }),
-    db.order.count({ where: { driverId, scheduledDate: { gte: startOfDay, lte: endOfDay }, status: OrderStatus.RESCHEDULED } }),
+  const [orderStatusDistribution, paymentMethodDistribution, expenseData, bottleData, unlinkedOrdersData, unlinkedExpensesData] =
+    await Promise.all([
+      // Group orders by status to get counts in a single query
+      db.order.groupBy({
+        by: ['status'],
+        where: { driverId, scheduledDate: { gte: startOfDay, lte: endOfDay } },
+        _count: { _all: true },
+      }),
 
-    // Financial breakdown by payment method
-    db.order.aggregate({
-      where: { ...completedOrdersWhere, paymentMethod: PaymentMethod.CASH },
-      _sum: { cashCollected: true },
-      _count: true,
-    }),
-    db.order.aggregate({
-      where: { ...completedOrdersWhere, paymentMethod: PaymentMethod.ONLINE_TRANSFER },
-      _sum: { cashCollected: true },
-      _count: true,
-    }),
-    db.order.aggregate({
-      where: { ...completedOrdersWhere, paymentMethod: PaymentMethod.CREDIT },
-      _sum: { cashCollected: true },
-      _count: true,
-    }),
-    db.order.aggregate({
-      where: { ...completedOrdersWhere, paymentMethod: PaymentMethod.PREPAID_WALLET },
-      _sum: { cashCollected: true },
-      _count: true,
-    }),
+      // Financial breakdown by payment method for completed orders
+      db.order.groupBy({
+        by: ['paymentMethod'],
+        where: completedOrdersWhere,
+        _sum: { cashCollected: true },
+        _count: { _all: true },
+      }),
 
-    // Expenses - only count APPROVED expenses (PENDING and REJECTED should not affect cash)
-    db.expense.aggregate({
-      where: {
-        driverId,
-        date: { gte: startOfDay, lte: endOfDay },
-        paymentMethod: 'CASH_ON_HAND',
-        status: 'APPROVED',
-      },
-      _sum: { amount: true },
-    }),
+      // Expenses - only count APPROVED expenses (PENDING and REJECTED should not affect cash)
+      db.expense.aggregate({
+        where: {
+          driverId,
+          date: { gte: startOfDay, lte: endOfDay },
+          paymentMethod: 'CASH_ON_HAND',
+          status: 'APPROVED',
+        },
+        _sum: { amount: true },
+      }),
 
-    // Bottle exchange data from completed orders
-    db.orderItem.aggregate({
-      where: {
-        order: completedOrdersWhere,
-      },
-      _sum: {
-        filledGiven: true,
-        emptyTaken: true,
-        damagedReturned: true,
-      },
-    }),
+      // Bottle exchange data from completed orders
+      db.orderItem.aggregate({
+        where: {
+          order: completedOrdersWhere,
+        },
+        _sum: {
+          filledGiven: true,
+          emptyTaken: true,
+          damagedReturned: true,
+        },
+      }),
 
-    // Get unlinked pending cash (Transaction Based)
-    db.order.aggregate({
-      where: {
-        driverId,
-        status: OrderStatus.COMPLETED,
-        paymentMethod: PaymentMethod.CASH,
-        cashHandoverId: null,
-      },
-      _sum: { cashCollected: true },
-    }),
+      // Get unlinked pending cash (Transaction Based)
+      db.order.aggregate({
+        where: {
+          driverId,
+          status: OrderStatus.COMPLETED,
+          paymentMethod: PaymentMethod.CASH,
+          cashHandoverId: null,
+        },
+        _sum: { cashCollected: true },
+      }),
 
-    // Get unlinked pending expenses (Transaction Based)
-    db.expense.aggregate({
-      where: {
-        driverId,
-        status: 'APPROVED',
-        paymentMethod: 'CASH_ON_HAND',
-        cashHandoverId: null,
-      },
-      _sum: { amount: true },
-    }),
-  ]);
+      // Get unlinked pending expenses (Transaction Based)
+      db.expense.aggregate({
+        where: {
+          driverId,
+          status: 'APPROVED',
+          paymentMethod: 'CASH_ON_HAND',
+          cashHandoverId: null,
+        },
+        _sum: { amount: true },
+      }),
+    ]);
 
-  const cashCollected = parseFloat(cashOrders._sum.cashCollected?.toString() || '0');
-  const onlineCollected = parseFloat(onlineOrders._sum.cashCollected?.toString() || '0');
-  const creditGiven = parseFloat(creditOrders._sum.cashCollected?.toString() || '0');
-  const prepaidUsed = parseFloat(prepaidOrders._sum.cashCollected?.toString() || '0');
+  // Derive order counts in-memory from the status distribution
+  let totalOrders = 0;
+  let completedOrders = 0;
+  let pendingOrders = 0;
+  let cancelledOrders = 0;
+  let rescheduledOrders = 0;
+
+  const pendingStatuses = [OrderStatus.PENDING, OrderStatus.SCHEDULED, OrderStatus.IN_PROGRESS];
+
+  for (const group of orderStatusDistribution) {
+    const count = group._count._all;
+    totalOrders += count;
+
+    if (group.status === OrderStatus.COMPLETED) {
+      completedOrders = count;
+    } else if (pendingStatuses.includes(group.status)) {
+      pendingOrders += count;
+    } else if (group.status === OrderStatus.CANCELLED) {
+      cancelledOrders = count;
+    } else if (group.status === OrderStatus.RESCHEDULED) {
+      rescheduledOrders = count;
+    }
+  }
+
+  // Derive payment method statistics in-memory
+  const cashData = paymentMethodDistribution.find((g) => g.paymentMethod === PaymentMethod.CASH);
+  const onlineData = paymentMethodDistribution.find((g) => g.paymentMethod === PaymentMethod.ONLINE_TRANSFER);
+  const creditData = paymentMethodDistribution.find((g) => g.paymentMethod === PaymentMethod.CREDIT);
+  const prepaidData = paymentMethodDistribution.find((g) => g.paymentMethod === PaymentMethod.PREPAID_WALLET);
+
+  const cashOrdersCount = cashData?._count._all || 0;
+  const onlineOrdersCount = onlineData?._count._all || 0;
+  const creditOrdersCount = creditData?._count._all || 0;
+  const prepaidOrdersCount = prepaidData?._count._all || 0;
+
+  const cashCollected = parseFloat(cashData?._sum.cashCollected?.toString() || '0');
+  const onlineCollected = parseFloat(onlineData?._sum.cashCollected?.toString() || '0');
+  const creditGiven = parseFloat(creditData?._sum.cashCollected?.toString() || '0');
+  const prepaidUsed = parseFloat(prepaidData?._sum.cashCollected?.toString() || '0');
+
   const expenses = parseFloat(expenseData._sum.amount?.toString() || '0');
 
   const filledGiven = bottleData._sum.filledGiven || 0;
@@ -159,10 +162,10 @@ export async function getDriverStats(driverId: string, date: Date) {
     totalPendingCash: netPendingCash.toFixed(2),
 
     // Order counts by payment method
-    cashOrdersCount: cashOrders._count || 0,
-    onlineOrdersCount: onlineOrders._count || 0,
-    creditOrdersCount: creditOrders._count || 0,
-    prepaidOrdersCount: prepaidOrders._count || 0,
+    cashOrdersCount,
+    onlineOrdersCount,
+    creditOrdersCount,
+    prepaidOrdersCount,
 
     // Bottles breakdown
     filledGiven,
