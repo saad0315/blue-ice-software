@@ -1,5 +1,5 @@
 import { zValidator } from '@hono/zod-validator';
-import { OrderStatus, UserRole } from '@prisma/client';
+import { OrderStatus, Prisma, UserRole } from '@prisma/client';
 import { Hono } from 'hono';
 import { z } from 'zod';
 
@@ -15,24 +15,8 @@ const app = new Hono()
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(today.getDate() - 30);
 
-      const [customerCount, orderCount, activeOrderCount, revenueData, dailyRevenue, orderStatusDistribution] = await Promise.all([
+      const [customerCount, dailyRevenue, orderStatusDistribution] = await Promise.all([
         db.customerProfile.count(),
-        db.order.count(),
-        db.order.count({
-          where: {
-            status: {
-              notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED],
-            },
-          },
-        }),
-        db.order.aggregate({
-          where: {
-            status: OrderStatus.COMPLETED,
-          },
-          _sum: {
-            totalAmount: true,
-          },
-        }),
         // Revenue per day (last 30 days)
         db.$queryRaw`
           SELECT DATE("createdAt") as date, SUM("totalAmount") as amount
@@ -48,15 +32,26 @@ const app = new Hono()
           _count: {
             id: true,
           },
+          _sum: {
+            totalAmount: true,
+          },
         }),
       ]);
+
+      const orderCount = orderStatusDistribution.reduce((acc, curr) => acc + curr._count.id, 0);
+      const activeOrderCount = orderStatusDistribution
+        .filter((curr) => ![OrderStatus.COMPLETED, OrderStatus.CANCELLED].includes(curr.status as OrderStatus))
+        .reduce((acc, curr) => acc + curr._count.id, 0);
+
+      const completedStats = orderStatusDistribution.find((curr) => curr.status === OrderStatus.COMPLETED);
+      const totalRevenue = new Prisma.Decimal(completedStats?._sum?.totalAmount || 0).toString();
 
       return ctx.json({
         data: {
           customerCount,
           orderCount,
           activeOrderCount,
-          totalRevenue: revenueData._sum.totalAmount?.toString() || '0',
+          totalRevenue,
           dailyRevenue: dailyRevenue as { date: Date; amount: number }[],
           orderStatusDistribution: orderStatusDistribution.map((item) => ({
             name: item.status,
