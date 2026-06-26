@@ -1,0 +1,4 @@
+
+## 2024-05-18 - Consolidating Database Queries with GroupBy
+**Learning:** Found an anti-pattern in the codebase where multiple parallel `.count()` and `.aggregate()` queries filter on the exact same base entity but different specific statuses or enums (e.g., getting counts of orders in 'COMPLETED', 'PENDING', 'CANCELLED' separately). While parallelized using `Promise.all`, this still initiates multiple roundtrips and puts unnecessary load on the database compared to a single query.
+**Action:** Instead of dispatching N parallel `.count` or `.aggregate` database calls for different category conditions, replace them with a single `.groupBy()` query on the categorization column (e.g., `status` or `paymentMethod`), and extract the totals locally in-memory from the returned group results to significantly reduce database overhead.
