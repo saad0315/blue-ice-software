@@ -1,0 +1,3 @@
+## 2024-07-01 - Consolidate Prisma Counts and Aggregates
+**Learning:** Found an anti-pattern in `getDriverStats` and `getDriverDetailStats` where 5 to 9 parallel `db.order.count()` and `db.order.aggregate()` calls were made with overlapping where-clauses (differing mainly by `status` or `paymentMethod`). This creates unnecessary load and connections on the database.
+**Action:** Replace multiple parallel queries on the same table with a single `db.[model].groupBy()` query. Fetch `_count: { _all: true }` and `_sum: { ... }`, then aggregate and map the specific buckets locally in memory using `Prisma.Decimal` math.
