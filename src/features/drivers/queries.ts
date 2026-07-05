@@ -1,7 +1,7 @@
 import { ExpenseStatus, OrderStatus, Prisma, UserRole } from '@prisma/client';
 
 import { hashPassword } from '@/lib/authenticate';
-import { toUtcStartOfDay, toUtcEndOfDay } from '@/lib/date-utils';
+import { toUtcEndOfDay, toUtcStartOfDay } from '@/lib/date-utils';
 import { db } from '@/lib/db';
 
 export async function createDriver(data: {
@@ -47,12 +47,12 @@ export async function getDrivers(params: { search?: string; page: number; limit:
 
   const where: Prisma.DriverProfileWhereInput = search
     ? {
-      OR: [
-        { user: { name: { contains: search, mode: 'insensitive' } } },
-        { user: { phoneNumber: { contains: search } } },
-        { vehicleNo: { contains: search, mode: 'insensitive' } },
-      ],
-    }
+        OR: [
+          { user: { name: { contains: search, mode: 'insensitive' } } },
+          { user: { phoneNumber: { contains: search } } },
+          { vehicleNo: { contains: search, mode: 'insensitive' } },
+        ],
+      }
     : {};
 
   // Use PKT-aware UTC boundaries for consistent date filtering
@@ -270,20 +270,7 @@ export async function getDriverDetailStats(driverId: string, params?: { startDat
   };
 
   // Fetch all statistics in parallel
-  const [
-    driver,
-    totalOrders,
-    completedOrders,
-    pendingOrders,
-    cancelledOrders,
-    rescheduledOrders,
-    financialStats,
-    bottleStats,
-    recentOrders,
-    allTimeStats,
-    todayStats,
-    expenseStats,
-  ] = await Promise.all([
+  const [driver, statusGroups, financialStats, bottleStats, recentOrders, allTimeStats, todayStats, expenseStats] = await Promise.all([
     // Driver basic info
     db.driverProfile.findUnique({
       where: { id: driverId },
@@ -302,12 +289,12 @@ export async function getDriverDetailStats(driverId: string, params?: { startDat
       },
     }),
 
-    // Order counts for selected period
-    db.order.count({ where: whereCondition }),
-    db.order.count({ where: completedWhereCondition }),
-    db.order.count({ where: { ...whereCondition, status: { in: [OrderStatus.SCHEDULED, OrderStatus.IN_PROGRESS] } } }),
-    db.order.count({ where: { ...whereCondition, status: OrderStatus.CANCELLED } }),
-    db.order.count({ where: { ...whereCondition, status: OrderStatus.RESCHEDULED } }),
+    // Order counts for selected period grouped by status
+    db.order.groupBy({
+      by: ['status'],
+      where: whereCondition,
+      _count: { _all: true },
+    }),
 
     // Financial statistics
     db.order.aggregate({
@@ -407,6 +394,18 @@ export async function getDriverDetailStats(driverId: string, params?: { startDat
     throw new Error('Driver not found');
   }
 
+  // Aggregate in-memory from grouped results
+  const totalOrders = statusGroups.reduce((acc, group) => acc + (group._count._all || 0), 0);
+  const completedOrders = statusGroups.find((g) => g.status === OrderStatus.COMPLETED)?._count._all || 0;
+
+  const pendingStatuses: OrderStatus[] = [OrderStatus.SCHEDULED, OrderStatus.IN_PROGRESS];
+  const pendingOrders = statusGroups
+    .filter((g) => pendingStatuses.includes(g.status))
+    .reduce((acc, group) => acc + (group._count._all || 0), 0);
+
+  const cancelledOrders = statusGroups.find((g) => g.status === OrderStatus.CANCELLED)?._count._all || 0;
+  const rescheduledOrders = statusGroups.find((g) => g.status === OrderStatus.RESCHEDULED)?._count._all || 0;
+
   return {
     driver,
     period: {
@@ -481,7 +480,7 @@ export async function getDriverDeliveries(
     startDate?: Date;
     endDate?: Date;
     status?: OrderStatus | 'ALL';
-  }
+  },
 ) {
   const { page, limit, startDate, endDate, status = OrderStatus.COMPLETED } = params;
   const skip = (page - 1) * limit;
